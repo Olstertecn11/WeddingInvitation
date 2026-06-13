@@ -75,7 +75,6 @@ function MusicPlayer({ shouldPlay }) {
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.72);
-  const [previousVolume, setPreviousVolume] = useState(0.72);
   const [compact, setCompact] = useState(false);
 
   useEffect(() => {
@@ -104,15 +103,19 @@ function MusicPlayer({ shouldPlay }) {
     return `${minutes}:${String(seconds).padStart(2, "0")}`;
   }
 
-  function changeVolume(value) {
-    const nextVolume = Number(value);
+  function changeVolume(nextVolume) {
     setVolume(nextVolume);
-    if (nextVolume > 0) setPreviousVolume(nextVolume);
     if (audioRef.current) audioRef.current.volume = nextVolume;
   }
 
-  function toggleMute() {
-    changeVolume(volume > 0 ? 0 : previousVolume || 0.72);
+  function cycleVolume() {
+    if (volume === 0) {
+      changeVolume(0.45);
+    } else if (volume < 0.7) {
+      changeVolume(0.85);
+    } else {
+      changeVolume(0);
+    }
   }
 
   return (
@@ -181,24 +184,21 @@ function MusicPlayer({ shouldPlay }) {
                 {formatTime(progress)} / {formatTime(duration)}
               </small>
             </div>
-            <div className="volume-control">
-              <button
-                type="button"
-                onClick={toggleMute}
-                aria-label={volume > 0 ? "Silenciar música" : "Activar música"}
-              >
-                {volume > 0 ? "♪" : "×"}
-              </button>
-              <input
-                aria-label="Volumen"
-                type="range"
-                min="0"
-                max="1"
-                step="0.05"
-                value={volume}
-                onChange={(event) => changeVolume(event.target.value)}
-              />
-            </div>
+            <button
+              className="volume-button"
+              type="button"
+              onClick={cycleVolume}
+              aria-label={
+                volume === 0
+                  ? "Activar volumen"
+                  : `Cambiar volumen, nivel ${volume < 0.7 ? "medio" : "alto"}`
+              }
+            >
+              <span aria-hidden="true">
+                {volume === 0 ? "♪×" : volume < 0.7 ? "♪" : "♫"}
+              </span>
+              {volume === 0 ? "Silencio" : volume < 0.7 ? "Medio" : "Alto"}
+            </button>
           </div>
         ) : (
           <em>Pista pendiente</em>
