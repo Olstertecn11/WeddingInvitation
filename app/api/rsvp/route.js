@@ -6,12 +6,9 @@ import {
   isValidEmail,
   normalizeName,
 } from "@/lib/rsvp";
+import { cleanText } from "@/lib/invitations";
 
 export const runtime = "nodejs";
-
-function cleanText(value, maxLength) {
-  return String(value || "").trim().slice(0, maxLength);
-}
 
 export async function POST(request) {
   let payload;
@@ -25,18 +22,17 @@ export async function POST(request) {
   }
 
   const code = cleanText(payload.invitationCode, 64);
-  const fullName = cleanText(payload.fullName, 160);
+  const selectedGuestIds = Array.isArray(payload.selectedGuestIds)
+    ? payload.selectedGuestIds
+        .map(Number)
+        .filter((id) => Number.isInteger(id) && id > 0)
+        .slice(0, 20)
+    : [];
   const email = cleanText(payload.email, 190).toLowerCase();
   const attendance = payload.attendance === "yes" ? "yes" : "no";
   const dietaryNotes = cleanText(payload.dietaryNotes, 500);
-  const companions = Array.isArray(payload.companionNames)
-    ? payload.companionNames
-        .map((name) => cleanText(name, 160))
-        .filter(Boolean)
-        .slice(0, 10)
-    : [];
 
-  if (!code || fullName.length < 3 || !isValidEmail(email)) {
+  if (!code || !isValidEmail(email)) {
     return NextResponse.json(
       { message: "Revisa tu código, nombre y correo electrónico." },
       { status: 400 },
@@ -49,7 +45,7 @@ export async function POST(request) {
   try {
     await connection.beginTransaction();
     const [invitations] = await connection.execute(
-      `SELECT id, display_name, max_guests, allowed_guests
+      `SELECT id, display_name, max_guests
        FROM invitations
        WHERE code = ? AND active = 1
        LIMIT 1
@@ -66,34 +62,38 @@ export async function POST(request) {
     }
 
     const invitation = invitations[0];
-    const allowedGuests =
-      typeof invitation.allowed_guests === "string"
-        ? JSON.parse(invitation.allowed_guests)
-        : invitation.allowed_guests || [];
-    const submittedNames = [fullName, ...companions].map(normalizeName);
-    const allowedNames = allowedGuests.map(normalizeName);
+    const [guestRows] = await connection.execute(
+      `SELECT id, full_name, is_primary
+       FROM invitation_guests
+       WHERE invitation_id = ?
+       ORDER BY is_primary DESC, id`,
+      [invitation.id],
+    );
+    const allowedIds = new Set(guestRows.map((guest) => Number(guest.id)));
+    const attendingGuests =
+      attendance === "yes"
+        ? guestRows.filter((guest) => selectedGuestIds.includes(Number(guest.id)))
+        : [];
 
-    if (submittedNames.length > invitation.max_guests) {
+    if (
+      attendance === "yes" &&
+      (!attendingGuests.length ||
+        selectedGuestIds.some((id) => !allowedIds.has(id)))
+    ) {
       await connection.rollback();
       return NextResponse.json(
         {
-          message: `Esta invitación permite ${invitation.max_guests} persona(s).`,
+          message: "Selecciona al menos una persona incluida en la invitación.",
         },
         { status: 400 },
       );
     }
 
-    if (
-      allowedNames.length &&
-      submittedNames.some((name) => !allowedNames.includes(name))
-    ) {
+    if (!guestRows.length) {
       await connection.rollback();
       return NextResponse.json(
-        {
-          message:
-            "Uno de los nombres no coincide con las personas incluidas en la invitación.",
-        },
-        { status: 400 },
+        { message: "La invitación no tiene integrantes configurados." },
+        { status: 409 },
       );
     }
 
@@ -112,6 +112,15 @@ export async function POST(request) {
       );
     }
 
+    const primaryGuest =
+      attendingGuests.find((guest) => guest.is_primary) ||
+      attendingGuests[0] ||
+      guestRows.find((guest) => guest.is_primary) ||
+      guestRows[0];
+    const companions = attendingGuests
+      .filter((guest) => guest.id !== primaryGuest.id)
+      .map((guest) => guest.full_name);
+
     await connection.execute(
       `INSERT INTO rsvps
        (invitation_id, full_name, normalized_name, email, attendance,
@@ -119,8 +128,8 @@ export async function POST(request) {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         invitation.id,
-        fullName,
-        normalizeName(fullName),
+        primaryGuest.full_name,
+        normalizeName(primaryGuest.full_name),
         email,
         attendance,
         JSON.stringify(companions),
@@ -128,6 +137,13 @@ export async function POST(request) {
         hashIp(getClientIp(request)),
         cleanText(request.headers.get("user-agent"), 500),
       ],
+    );
+
+    await connection.execute(
+      `UPDATE invitations
+       SET active = 0, used_at = NOW(), updated_at = NOW()
+       WHERE id = ?`,
+      [invitation.id],
     );
 
     await connection.commit();

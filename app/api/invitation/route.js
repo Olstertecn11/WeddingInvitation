@@ -11,9 +11,10 @@ export async function GET(request) {
 
   try {
     const [rows] = await getPool().execute(
-      `SELECT display_name, max_guests, allowed_guests
+      `SELECT id, display_name, invitation_type, max_guests,
+              personalized_message, active
        FROM invitations
-       WHERE code = ? AND active = 1
+       WHERE code = ?
        LIMIT 1`,
       [code],
     );
@@ -23,7 +24,37 @@ export async function GET(request) {
         { status: 404 },
       );
     }
-    return NextResponse.json(rows[0]);
+    if (!rows[0].active) {
+      return NextResponse.json(
+        {
+          message:
+            "Esta invitación ya fue respondida y el enlace está cerrado.",
+          status: "used",
+        },
+        { status: 410 },
+      );
+    }
+
+    const [guests] = await getPool().execute(
+      `SELECT id, full_name, gender, is_primary
+       FROM invitation_guests
+       WHERE invitation_id = ?
+       ORDER BY is_primary DESC, id`,
+      [rows[0].id],
+    );
+
+    return NextResponse.json({
+      displayName: rows[0].display_name,
+      invitationType: rows[0].invitation_type,
+      maxGuests: rows[0].max_guests,
+      personalizedMessage: rows[0].personalized_message,
+      guests: guests.map((guest) => ({
+        id: guest.id,
+        fullName: guest.full_name,
+        gender: guest.gender,
+        isPrimary: Boolean(guest.is_primary),
+      })),
+    });
   } catch (error) {
     console.error("Invitation lookup failed:", error);
     return NextResponse.json(
