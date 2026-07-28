@@ -1290,7 +1290,7 @@ footer>span {
 .story-image {
   background:
     linear-gradient(rgba(70, 50, 39, .05), rgba(70, 50, 39, .18)),
-    url("/ermita-watercolor.png") center / cover;
+    url("/images/DSC_0159.jpg") center / cover;
   inset: -12%;
   position: absolute;
 }
@@ -1318,6 +1318,87 @@ footer>span {
   margin-top: 2rem;
 }
 
+.love-portraits {
+  background:
+    linear-gradient(rgba(247, 240, 231, .92), rgba(247, 240, 231, .92)),
+    radial-gradient(circle at 12% 18%, rgba(102, 112, 93, .16), transparent 24%),
+    radial-gradient(circle at 90% 80%, rgba(199, 133, 104, .18), transparent 28%);
+}
+
+.portraits-heading {
+  margin: 0 auto 4rem;
+  max-width: 760px;
+}
+
+.portrait-grid {
+  display: grid;
+  gap: clamp(1.2rem, 3vw, 2rem);
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.portrait-card {
+  margin: 0;
+  text-align: left;
+}
+
+.portrait-card:nth-child(2) {
+  margin-top: 4rem;
+}
+
+.portrait-photo {
+  aspect-ratio: 4 / 5.35;
+  box-shadow: 0 24px 55px rgba(71, 50, 38, .16);
+  overflow: hidden;
+  position: relative;
+}
+
+.portrait-photo::after {
+  border: 1px solid rgba(255, 250, 243, .82);
+  content: "";
+  inset: 12px;
+  position: absolute;
+}
+
+.portrait-photo img,
+.memory-photo img {
+  height: 100%;
+  object-fit: cover;
+  width: 100%;
+}
+
+.portrait-photo span {
+  background: rgba(117, 63, 50, .82);
+  bottom: 0;
+  color: var(--white);
+  font-size: .58rem;
+  left: 0;
+  letter-spacing: .16em;
+  padding: .8rem 1rem;
+  position: absolute;
+  text-transform: uppercase;
+  z-index: 1;
+}
+
+.portrait-card figcaption {
+  align-items: baseline;
+  display: flex;
+  gap: 1rem;
+  padding: 1.3rem .4rem 0;
+}
+
+.portrait-card small {
+  color: var(--clay);
+  font-family: var(--serif);
+}
+
+.portrait-card p {
+  font-family: var(--serif);
+  font-size: clamp(1.15rem, 2vw, 1.55rem);
+  font-style: italic;
+  line-height: 1.35;
+  margin: 0;
+}
+
 .quote-section {
   background: var(--sage-dark);
 }
@@ -1328,6 +1409,69 @@ footer>span {
     url("/ermita-watercolor.png") center / cover;
   inset: -15%;
   position: absolute;
+}
+
+.memory-gallery {
+  background:
+    linear-gradient(rgba(84, 58, 49, .9), rgba(63, 73, 61, .94)),
+    url("/our-story.jpg") center / cover;
+  color: var(--white);
+  text-align: left;
+}
+
+.memory-heading {
+  align-items: end;
+  display: grid;
+  gap: 3rem;
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, .7fr);
+  margin-bottom: 3.5rem;
+}
+
+.memory-heading h2 {
+  margin-bottom: 0;
+  max-width: 680px;
+}
+
+.memory-heading>p {
+  line-height: 1.8;
+  margin: 0;
+  opacity: .78;
+}
+
+.memory-grid {
+  display: grid;
+  gap: 1px;
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.memory-card {
+  background: rgba(255, 250, 243, .08);
+  border: 1px solid rgba(255, 250, 243, .2);
+  min-height: 440px;
+}
+
+.memory-photo {
+  aspect-ratio: 1 / 1.08;
+  overflow: hidden;
+  position: relative;
+}
+
+.memory-card>div:last-child {
+  padding: 1.5rem;
+}
+
+.memory-card h3 {
+  font-family: var(--serif);
+  font-size: 1.55rem;
+  font-weight: 400;
+  margin: 0 0 .8rem;
+}
+
+.memory-card p {
+  font-size: .78rem;
+  line-height: 1.7;
+  margin: 0;
+  opacity: .78;
 }
 
 .guest-guide {
@@ -1981,6 +2125,19 @@ footer small {
     grid-template-columns: repeat(2, 1fr);
   }
 
+  .portrait-grid,
+  .memory-heading {
+    grid-template-columns: 1fr;
+  }
+
+  .portrait-card:nth-child(2) {
+    margin-top: 0;
+  }
+
+  .memory-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
   .guest-guide-card:nth-child(3n) {
     border-right: 1px solid rgba(255, 255, 255, .16);
   }
@@ -2022,6 +2179,14 @@ footer small {
 
   .guest-guide-grid {
     grid-template-columns: 1fr;
+  }
+
+  .memory-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .memory-card {
+    min-height: 0;
   }
 
   .guest-guide-card,

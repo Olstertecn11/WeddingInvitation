@@ -6,6 +6,47 @@ import { useEffect, useRef, useState } from "react";
 const WEDDING_DATE = new Date("2026-12-13T12:00:00-06:00");
 const MAP_URL =
   "https://www.google.com/maps/search/?api=1&query=Ermita+de+la+Santa+Cruz+Antigua+Guatemala";
+const BLUR_PLACEHOLDER =
+  "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4IDUiPjxyZWN0IHdpZHRoPSI4IiBoZWlnaHQ9IjUiIGZpbGw9IiNmM2VmZTkiLz48L3N2Zz4=";
+const PORTRAIT_PHOTOS = [
+  {
+    src: "/images/DSC_0084.JPG",
+    label: "Retrato 01",
+    caption: "Una mirada que se volvió hogar",
+  },
+  {
+    src: "/images/DSC_0052.JPG",
+    label: "Retrato 02",
+    caption: "Haciendo realidad el sí...",
+  },
+  {
+    src: "/images/DSC_0093.JPG",
+    label: "Retrato 03",
+    caption: "Nuestro lugar favorito: juntos",
+  },
+];
+const MEMORY_PHOTOS = [
+  {
+    src: "/our-story.jpg",
+    title: "Risas",
+    text: "Para esas fotos espontáneas que cuentan más que mil palabras.",
+  },
+  {
+    src: "/ermita-watercolor.png",
+    title: "Viajes",
+    text: "Pequeñas escapadas, calles nuevas y recuerdos compartidos.",
+  },
+  {
+    src: "/our-story.jpg",
+    title: "Promesas",
+    text: "Momentos que nos trajeron hasta este capítulo.",
+  },
+  {
+    src: "/ermita-watercolor.png",
+    title: "Celebración",
+    text: "Un espacio para guardar imágenes del día y de quienes amamos.",
+  },
+];
 
 function Monogram() {
   return (
@@ -542,6 +583,38 @@ export default function WeddingInvitation({ initialCode = "" }) {
         </div>
       </section>
 
+      <section className="section love-portraits paper">
+        <div className="portraits-heading" data-reveal>
+          <p className="eyebrow terracotta">Retratos de nuestro amor</p>
+          <h2>Momentos que queremos guardar</h2>
+          <p className="lead">
+            Un pequeño álbum para llenar con fotografías de nosotros, de los
+            días que nos han formado y de los recuerdos que queremos conservar.
+          </p>
+        </div>
+        <div className="portrait-grid">
+          {PORTRAIT_PHOTOS.map((photo, index) => (
+            <figure className="portrait-card" data-reveal key={photo.label}>
+              <div className="portrait-photo">
+                <Image
+                  src={photo.src}
+                  alt={`${photo.label} de Oliver y Analucía`}
+                  fill
+                  quality={75}
+                  placeholder="blur"
+                  blurDataURL={BLUR_PLACEHOLDER}
+                  sizes="(max-width: 640px) 84vw, (max-width: 1024px) 46vw, 30vw"
+                />
+              </div>
+              <figcaption>
+                <small>{String(index + 1).padStart(2, "0")}</small>
+                <p>{photo.caption}</p>
+              </figcaption>
+            </figure>
+          ))}
+        </div>
+      </section>
+
       <section className="section quote-section">
         <div className="quote-backdrop" data-parallax="0.08" />
         <div className="quote-card" data-reveal>
@@ -559,7 +632,10 @@ export default function WeddingInvitation({ initialCode = "" }) {
             src="/ermita-watercolor.png"
             alt="Ilustración de la Ermita de la Santa Cruz en Antigua Guatemala"
             fill
-            sizes="(max-width: 760px) 86vw, 50vw"
+            quality={80}
+            placeholder="blur"
+            blurDataURL={BLUR_PLACEHOLDER}
+            sizes="(max-width: 640px) 86vw, (max-width: 1024px) 80vw, 48vw"
           />
         </div>
         <div className="venue-copy" data-reveal>
@@ -579,6 +655,38 @@ export default function WeddingInvitation({ initialCode = "" }) {
           <a className="button" href={MAP_URL} target="_blank" rel="noreferrer">
             Ver ubicación
           </a>
+        </div>
+      </section>
+
+      <section className="section memory-gallery">
+        <div className="memory-heading" data-reveal>
+          <p className="eyebrow">Nuestro álbum</p>
+          <h2>Capítulos en fotografías</h2>
+          <p>
+            Aquí podremos colocar más recuerdos: viajes, aniversarios, fotos
+            favoritas y pequeños instantes que también son parte de esta boda.
+          </p>
+        </div>
+        <div className="memory-grid">
+          {MEMORY_PHOTOS.map((memory) => (
+            <article className="memory-card" data-reveal key={memory.title}>
+              <div className="memory-photo">
+                <Image
+                  src={memory.src}
+                  alt={`Foto para ${memory.title.toLowerCase()}`}
+                  fill
+                  quality={75}
+                  placeholder="blur"
+                  blurDataURL={BLUR_PLACEHOLDER}
+                  sizes="(max-width: 640px) 86vw, (max-width: 1024px) 45vw, 24vw"
+                />
+              </div>
+              <div>
+                <h3>{memory.title}</h3>
+                <p>{memory.text}</p>
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 
