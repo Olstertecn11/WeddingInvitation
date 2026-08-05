@@ -309,7 +309,7 @@ textarea {
 }
 
 .hero-image {
-  background: url("/ermita-watercolor.png") center 64% / cover no-repeat;
+  background: url("/ermita-watercolor.png") center 64% / cover no-repeat !important;
   filter: saturate(0.75) contrast(1.03);
   transform: scale(1.01);
 }
