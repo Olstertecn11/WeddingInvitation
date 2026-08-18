@@ -35,6 +35,10 @@ body.envelope-locked {
   overflow: hidden;
 }
 
+body.special-letter-open {
+  overflow: hidden;
+}
+
 button,
 input,
 textarea {
@@ -1112,6 +1116,179 @@ footer>span {
   color: #ffe1d8;
 }
 
+.special-letter-modal {
+  align-items: center;
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: clamp(1.1rem, 4vw, 3rem);
+  position: fixed;
+  z-index: 90;
+}
+
+.special-letter-backdrop {
+  background:
+    radial-gradient(circle at 50% 44%, rgba(255, 250, 243, .2), transparent 34%),
+    rgba(40, 31, 27, .58);
+  backdrop-filter: blur(10px);
+  inset: 0;
+  position: absolute;
+}
+
+.special-letter-card {
+  animation: letterArrival .7s cubic-bezier(.2, .76, .2, 1) both;
+  background:
+    linear-gradient(rgba(255, 250, 243, .95), rgba(255, 250, 243, .96)),
+    url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.2'/%3E%3C/svg%3E");
+  border: 1px solid rgba(117, 63, 50, .22);
+  box-shadow: 0 34px 90px rgba(45, 31, 24, .32);
+  color: var(--ink);
+  max-height: min(88svh, 760px);
+  max-width: 640px;
+  overflow: hidden auto;
+  padding: clamp(2.3rem, 7vw, 5rem) clamp(1.6rem, 6vw, 4.3rem);
+  position: relative;
+  text-align: center;
+  width: min(100%, 640px);
+}
+
+.special-letter-card::before,
+.special-letter-card::after {
+  content: "";
+  pointer-events: none;
+  position: absolute;
+}
+
+.special-letter-card::before {
+  border: 1px solid rgba(166, 94, 71, .28);
+  inset: 16px;
+}
+
+.special-letter-card::after {
+  background:
+    linear-gradient(90deg, transparent, rgba(166, 94, 71, .28), transparent),
+    linear-gradient(90deg, transparent, rgba(102, 112, 93, .22), transparent);
+  height: 2px;
+  left: 18%;
+  top: 35px;
+  width: 64%;
+}
+
+.special-letter-card .botanical {
+  opacity: .78;
+  top: -18px;
+}
+
+.special-letter-close {
+  align-items: center;
+  background: rgba(117, 63, 50, .08);
+  border: 1px solid rgba(117, 63, 50, .22);
+  border-radius: 50%;
+  color: var(--terracotta-dark);
+  cursor: pointer;
+  display: flex;
+  font-family: var(--serif);
+  height: 34px;
+  justify-content: center;
+  line-height: 1;
+  position: absolute;
+  right: 24px;
+  top: 24px;
+  width: 34px;
+  z-index: 2;
+}
+
+.special-letter-seal {
+  align-items: center;
+  background:
+    radial-gradient(circle at 35% 28%, #d57d63, #933f32 64%, #6f2f28);
+  border-radius: 50%;
+  box-shadow:
+    0 10px 24px rgba(117, 63, 50, .28),
+    inset 0 0 0 5px rgba(255, 213, 181, .18);
+  color: #f8e1cc;
+  display: flex;
+  font-family: var(--serif);
+  height: 82px;
+  justify-content: center;
+  margin: 0 auto 1.4rem;
+  position: relative;
+  width: 82px;
+}
+
+.special-letter-seal span {
+  align-items: center;
+  border: 1px solid rgba(255, 220, 191, .5);
+  border-radius: 50%;
+  display: flex;
+  font-size: .72rem;
+  height: 56px;
+  justify-content: center;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  width: 56px;
+}
+
+.special-letter-card h2 {
+  color: var(--terracotta-dark);
+  font-family: var(--serif);
+  font-size: clamp(2.4rem, 7vw, 4.4rem);
+  font-weight: 400;
+  line-height: .95;
+  margin: .8rem 0 1.1rem;
+}
+
+.special-letter-card>p:not(.eyebrow, .script, .special-letter-closing) {
+  font-size: .98rem;
+  line-height: 1.9;
+  margin: 0 auto;
+  max-width: 500px;
+}
+
+.special-letter-role {
+  border-bottom: 1px solid rgba(117, 63, 50, .18);
+  border-top: 1px solid rgba(117, 63, 50, .18);
+  display: grid;
+  gap: .45rem;
+  margin: 2rem auto 1.5rem;
+  max-width: 390px;
+  padding: 1.1rem 0;
+}
+
+.special-letter-role span {
+  color: var(--sage);
+  font-size: .62rem;
+  font-weight: 500;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+
+.special-letter-role strong {
+  color: var(--terracotta);
+  font-family: var(--serif);
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  font-weight: 400;
+}
+
+.special-letter-closing {
+  color: var(--sage-dark);
+  font-family: var(--serif);
+  font-size: 1.15rem;
+  font-style: italic;
+  line-height: 1.6;
+  margin: 0 auto 2rem;
+  max-width: 430px;
+}
+
+.special-letter-modal.for-gentleman .special-letter-seal {
+  background:
+    radial-gradient(circle at 35% 28%, #9a8066, #58634f 64%, #3f493d);
+}
+
+.special-letter-modal.for-gentleman .special-letter-role strong {
+  color: var(--sage-dark);
+}
+
 .music-player {
   background:
     linear-gradient(135deg, rgba(255, 252, 247, .97), rgba(239, 225, 211, .95));
@@ -2106,6 +2283,18 @@ footer small {
   }
 }
 
+@keyframes letterArrival {
+  from {
+    opacity: 0;
+    transform: translateY(34px) scale(.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 @media (max-width: 900px) {
 
   .story-section,
@@ -2159,6 +2348,39 @@ footer small {
 @media (max-width: 620px) {
   .letter b {
     display: none;
+  }
+
+  .special-letter-modal {
+    align-items: flex-end;
+    padding: .9rem;
+  }
+
+  .special-letter-card {
+    max-height: 86svh;
+    padding: 3.5rem 1.35rem 2rem;
+  }
+
+  .special-letter-card::before {
+    inset: 10px;
+  }
+
+  .special-letter-close {
+    right: 18px;
+    top: 18px;
+  }
+
+  .special-letter-seal {
+    height: 70px;
+    width: 70px;
+  }
+
+  .special-letter-seal span {
+    height: 48px;
+    width: 48px;
+  }
+
+  .special-letter-card .script {
+    font-size: 1.55rem;
   }
 
   .music-player .vinyl {

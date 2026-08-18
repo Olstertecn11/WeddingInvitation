@@ -262,6 +262,73 @@ function greetingFor(invitation) {
   return `Para ${guest?.fullName || invitation.displayName}`;
 }
 
+function getSpecialGuest(invitation) {
+  if (!invitation?.guests?.length) return null;
+  const hasSpecialRole = (person) => ["female", "male"].includes(person.gender);
+  const guest =
+    invitation.guests.find((person) => person.isPrimary && hasSpecialRole(person)) ||
+    invitation.guests.find(hasSpecialRole);
+  if (!guest) return null;
+
+  const isLady = guest.gender === "female";
+  return {
+    ...guest,
+    role: isLady ? "Dama" : "Caballero",
+    headline: isLady
+      ? "Nuestra boda también lleva tu luz"
+      : "Nuestra boda también lleva tu presencia",
+    greeting: isLady ? `Querida ${guest.fullName}` : `Querido ${guest.fullName}`,
+    body: isLady
+      ? "Queremos que vivas este día desde un lugar muy especial. Tu alegría, tu cariño y tu forma de acompañarnos son parte de los recuerdos que queremos guardar para siempre."
+      : "Queremos que vivas este día desde un lugar muy especial. Tu apoyo, tu cariño y tu forma de acompañarnos son parte de los recuerdos que queremos guardar para siempre.",
+    closing: isLady
+      ? "Gracias por ser una dama en esta historia."
+      : "Gracias por ser un caballero en esta historia.",
+  };
+}
+
+function SpecialGuestLetter({ guest, onClose }) {
+  if (!guest) return null;
+
+  return (
+    <div
+      className={`special-letter-modal ${guest.gender === "female" ? "for-lady" : "for-gentleman"}`}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="special-letter-title"
+    >
+      <div className="special-letter-backdrop" onClick={onClose} />
+      <article className="special-letter-card">
+        <Botanical />
+        <Botanical side="right" />
+        <button
+          className="special-letter-close"
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar carta especial"
+        >
+          x
+        </button>
+        <div className="special-letter-seal">
+          <span>{guest.role}</span>
+        </div>
+        <p className="eyebrow terracotta">Una carta especial para ti</p>
+        <h2 id="special-letter-title">{guest.greeting}</h2>
+        <p className="script">{guest.headline}</p>
+        <p>{guest.body}</p>
+        <div className="special-letter-role">
+          <span>Has sido elegid{guest.gender === "female" ? "a" : "o"} como</span>
+          <strong>{guest.role}</strong>
+        </div>
+        <p className="special-letter-closing">{guest.closing}</p>
+        <button className="button" type="button" onClick={onClose}>
+          Ver invitación
+        </button>
+      </article>
+    </div>
+  );
+}
+
 function RsvpForm({ invitationCode, invitation }) {
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
@@ -382,12 +449,15 @@ function ClosedInvitation({ message }) {
 
 export default function WeddingInvitation({ initialCode = "" }) {
   const [opened, setOpened] = useState(false);
+  const [specialLetterDismissed, setSpecialLetterDismissed] = useState(false);
   const [invitationCode, setInvitationCode] = useState(initialCode);
   const [invitation, setInvitation] = useState(null);
   const [lookupStatus, setLookupStatus] = useState(
     initialCode ? "loading" : "generic",
   );
   const [lookupMessage, setLookupMessage] = useState("");
+  const specialGuest = getSpecialGuest(invitation);
+  const showSpecialLetter = opened && specialGuest && !specialLetterDismissed;
 
   useEffect(() => {
     if (initialCode) return;
@@ -427,11 +497,13 @@ export default function WeddingInvitation({ initialCode = "" }) {
   useEffect(() => {
     document.body.classList.toggle("invitation-open", opened);
     document.body.classList.toggle("envelope-locked", !opened);
+    document.body.classList.toggle("special-letter-open", Boolean(showSpecialLetter));
     return () => {
       document.body.classList.remove("invitation-open");
       document.body.classList.remove("envelope-locked");
+      document.body.classList.remove("special-letter-open");
     };
-  }, [opened]);
+  }, [opened, showSpecialLetter]);
 
   useEffect(() => {
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -517,6 +589,11 @@ export default function WeddingInvitation({ initialCode = "" }) {
           )}
         </div>
       </div>
+
+      <SpecialGuestLetter
+        guest={showSpecialLetter ? specialGuest : null}
+        onClose={() => setSpecialLetterDismissed(true)}
+      />
 
       <MusicPlayer shouldPlay={opened} />
 
