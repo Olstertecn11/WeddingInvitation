@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "db:migrate": "node --env-file=.env.local scripts/migrate.mjs",
+    "admin:create": "node --env-file=.env.local scripts/create-admin.mjs",
     "test:smoke": "node --env-file=.env.local scripts/smoke-test.mjs"
   },
   "dependencies": {

@@ -8,7 +8,7 @@ export const metadata = {
 
 export default async function AdminPage() {
   const cookieStore = await cookies();
-  const authenticated = isValidAdminSession(
+  const authenticated = await isValidAdminSession(
     cookieStore.get(ADMIN_COOKIE)?.value,
   );
 

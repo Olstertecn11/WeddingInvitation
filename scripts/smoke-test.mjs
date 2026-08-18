@@ -20,7 +20,10 @@ try {
   const login = await fetch(`${baseUrl}/api/admin/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ password: process.env.ADMIN_PASSWORD }),
+    body: JSON.stringify({
+      email: process.env.ADMIN_EMAIL,
+      password: process.env.ADMIN_PASSWORD,
+    }),
   });
   assert(login.ok, `Admin login failed with ${login.status}`);
   const cookie = login.headers.get("set-cookie")?.split(";")[0];
@@ -66,19 +69,51 @@ try {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       invitationCode: code,
-      selectedGuestIds: invitationBody.guests.map((guest) => guest.id),
-      attendance: "yes",
-      email: "prueba@example.com",
+      contactName: "María Prueba",
+      contactEmail: "prueba@example.com",
+      contactPhone: "",
       dietaryNotes: "",
+      guestMessage: "",
+      guestResponses: invitationBody.guests.map((guest) => ({
+        invitationGuestId: guest.id,
+        attendanceStatus: "attending",
+      })),
     }),
   });
   const rsvpBody = await rsvp.json();
   assert(rsvp.ok, rsvpBody.message || `RSVP failed with ${rsvp.status}`);
 
-  const closed = await fetch(
+  const updated = await fetch(`${baseUrl}/api/rsvp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      invitationCode: code,
+      contactName: "María Prueba",
+      contactEmail: "prueba@example.com",
+      contactPhone: "",
+      dietaryNotes: "Sin restricciones",
+      guestMessage: "Gracias.",
+      guestResponses: invitationBody.guests.map((guest, index) => ({
+        invitationGuestId: guest.id,
+        attendanceStatus: index === 0 ? "attending" : "not_attending",
+      })),
+    }),
+  });
+  const updatedBody = await updated.json();
+  assert(updated.ok, updatedBody.message || `Update failed with ${updated.status}`);
+
+  const withRsvp = await fetch(
     `${baseUrl}/api/invitation?code=${encodeURIComponent(code)}`,
   );
-  assert(closed.status === 410, `Expected closed link, received ${closed.status}`);
+  const withRsvpBody = await withRsvp.json();
+  assert(withRsvp.ok, `Expected active link, received ${withRsvp.status}`);
+  assert(withRsvpBody.rsvp, "Saved RSVP was not returned");
+  assert(
+    withRsvpBody.rsvp.guestResponses.some(
+      (response) => response.attendanceStatus === "not_attending",
+    ),
+    "Updated guest response was not returned",
+  );
 
   const deleted = await fetch(`${baseUrl}/api/admin/invitations`, {
     method: "DELETE",
@@ -103,7 +138,8 @@ try {
       search: "ok",
       publicLookup: "ok",
       rsvp: "ok",
-      linkInvalidation: "ok",
+      rsvpUpdate: "ok",
+      rsvpPreload: "ok",
       invitationDeletion: "ok",
     }),
   );

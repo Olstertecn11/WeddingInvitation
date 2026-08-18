@@ -2,18 +2,23 @@ import { NextResponse } from "next/server";
 import {
   ADMIN_COOKIE,
   createAdminSession,
+  findAdminUserByEmail,
   getAdminCookieOptions,
-  isValidAdminPassword,
+  verifyAdminPassword,
 } from "@/lib/admin-auth";
 
 export const runtime = "nodejs";
 
 export async function POST(request) {
   try {
-    const { password } = await request.json();
-    if (!isValidAdminPassword(password)) {
+    const { email, password } = await request.json();
+    const user = await findAdminUserByEmail(email);
+    const validPassword =
+      user?.is_active && (await verifyAdminPassword(password, user.password_hash));
+
+    if (!validPassword) {
       return NextResponse.json(
-        { message: "La contraseña no es correcta." },
+        { message: "El correo o la contraseña no son correctos." },
         { status: 401 },
       );
     }
@@ -21,7 +26,7 @@ export async function POST(request) {
     const response = NextResponse.json({ message: "Sesión iniciada." });
     response.cookies.set(
       ADMIN_COOKIE,
-      createAdminSession(),
+      await createAdminSession(user, request),
       getAdminCookieOptions(),
     );
     return response;

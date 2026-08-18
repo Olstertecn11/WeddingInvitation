@@ -30,9 +30,11 @@ eliminar invitaciones y copiar su enlace personal con el formato:
 https://tu-dominio.com/codigo-personal
 ```
 
-Al registrar una respuesta, el código se desactiva dentro de la misma
-transacción y no puede utilizarse nuevamente. La aplicación no almacena IPs en
-claro: guarda un hash SHA-256 con la sal privada `RSVP_HASH_SALT`.
+La invitación solo se puede consultar cuando su estado es `active`. Al registrar
+una respuesta, se guarda un RSVP por invitación y las respuestas de cada
+integrante se insertan o actualizan dentro de la misma transacción. La
+aplicación no almacena IPs en claro: guarda un hash SHA-256 con la sal privada
+`RSVP_HASH_SALT`.
 
 ## Administración
 
@@ -40,12 +42,29 @@ Configura estas variables únicamente en `.env.local` o en el proveedor de
 despliegue:
 
 ```text
-ADMIN_PASSWORD=
-ADMIN_SESSION_SECRET=
+ADMIN_JWT_SECRET=
 ```
 
-La sesión administrativa utiliza una cookie `httpOnly` firmada y expira
-después de 12 horas.
+Los administradores se guardan en MySQL con contraseña hasheada mediante
+`scrypt`. Después de ejecutar `npm run db:migrate`, crea o actualiza el usuario
+admin con:
+
+```bash
+npm run admin:create
+```
+
+Ese comando usa temporalmente estas variables de tu `.env.local`:
+
+```text
+ADMIN_EMAIL=
+ADMIN_PASSWORD=
+ADMIN_DISPLAY_NAME=
+```
+
+La aplicación no usa `ADMIN_PASSWORD` en runtime. En producción puedes quitarla
+de Vercel después de crear el usuario. La sesión administrativa utiliza un JWT
+en cookie `httpOnly`, se valida contra `admin_sessions`, se revoca al cerrar
+sesión y expira después de 12 horas.
 
 ## Estilos
 
@@ -71,6 +90,5 @@ El mini reproductor busca la pista en:
 public/audio/iris.mp3
 ```
 
-Por derechos de autor, el archivo de audio no está incluido en el proyecto.
-Utiliza una copia de “Iris” de Goo Goo Dolls que tengas derecho a publicar. El
-archivo MP3 está excluido de Git para evitar subirlo accidentalmente.
+El archivo de audio `public/audio/iris.mp3` está incluido en Git. Asegúrate de
+tener derechos para publicarlo antes de desplegar el sitio.

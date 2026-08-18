@@ -319,9 +319,7 @@ textarea {
 }
 
 .hero-shade {
-  background:
-    linear-gradient(180deg, rgba(49, 39, 32, 0.2), transparent 25%),
-    linear-gradient(0deg, rgba(45, 52, 41, 0.78), rgba(70, 53, 44, 0.22) 62%, rgba(61, 49, 41, 0.06));
+  background: linear-gradient(180deg, rgba(49, 39, 32, 0.51), transparent 25%), linear-gradient(0deg, rgba(45, 52, 41, 0.78), rgba(70, 53, 44, 0.22) 62%, rgba(61, 49, 41, 0.06));
 }
 
 .hero-copy {
@@ -333,8 +331,8 @@ textarea {
 }
 
 .eyebrow {
-  font-size: 0.67rem;
-  font-weight: 500;
+  font-size: 0.8rem;
+  font-weight: bold;
   letter-spacing: 0.32em;
   text-transform: uppercase;
 }
@@ -414,6 +412,10 @@ textarea {
   color: var(--terracotta);
 }
 
+.terracotta.bold {
+  font-weight: bold !important;
+}
+
 .section h2 {
   font-family: var(--serif);
   font-size: clamp(2.7rem, 7vw, 5.2rem);
@@ -429,6 +431,15 @@ textarea {
   line-height: 1.7;
   margin: 0 auto;
   max-width: 580px;
+}
+
+.lead-small {
+  font-family: var(--serif);
+  font-size: clamp(1.3rem, 1.8vw, 1.2rem);
+  font-style: italic;
+  line-height: 1.7;
+  margin: 0 auto;
+  text-align: justify;
 }
 
 .botanical {
@@ -1467,7 +1478,7 @@ footer>span {
 .story-image {
   background:
     linear-gradient(rgba(70, 50, 39, .05), rgba(70, 50, 39, .18)),
-    url("/images/DSC_0159.jpg") center / cover;
+    url("/images/DSC_0159.JPG") center / cover;
   inset: -12%;
   position: absolute;
 }
@@ -1489,10 +1500,11 @@ footer>span {
 }
 
 .story-signature {
-  color: rgba(166, 94, 71, .25);
+  color: rgba(166, 94, 71, .12);
   font-family: var(--script);
   font-size: 5rem;
-  margin-top: 2rem;
+  margin-top: 0rem;
+  font-weight: 600;
 }
 
 .love-portraits {
@@ -1723,69 +1735,67 @@ footer>span {
   margin-top: 1.4rem;
 }
 
-.attendance-choice {
+.guest-response-list {
+  border-bottom: 1px solid rgba(255, 255, 255, .25) !important;
   display: grid !important;
-  gap: 1rem !important;
-  grid-template-columns: 1fr 1fr;
+  gap: .8rem !important;
+  padding-bottom: 1.4rem !important;
 }
 
-.attendance-choice legend,
-.guest-checklist legend {
-  grid-column: 1 / -1;
+.guest-response-list legend {
+  margin-bottom: .4rem;
 }
 
-.attendance-choice label {
-  border: 1px solid rgba(255, 255, 255, .28);
-  cursor: pointer;
+.guest-response-row {
+  align-items: center;
+  border: 1px solid rgba(255, 255, 255, .24);
   display: grid;
-  padding: 1.2rem;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: .8rem;
 }
 
-.attendance-choice label.selected {
-  background: rgba(255, 255, 255, .12);
-  border-color: rgba(255, 255, 255, .8);
+.guest-response-row>span {
+  font-family: var(--serif);
+  font-size: 1rem;
 }
 
-.attendance-choice input {
+.guest-response-row div {
+  display: flex;
+  gap: .45rem;
+}
+
+.guest-response-row label {
+  border: 1px solid rgba(255, 255, 255, .25);
+  cursor: pointer;
+  font-size: .58rem;
+  letter-spacing: 0;
+  padding: .55rem .7rem;
+  text-transform: none;
+}
+
+.guest-response-row label.selected {
+  background: rgba(255, 255, 255, .16);
+  border-color: rgba(255, 255, 255, .82);
+}
+
+.guest-response-row input {
   height: 0;
   margin: 0;
   opacity: 0;
   padding: 0;
+  position: absolute;
+  width: 0;
 }
 
-.attendance-choice strong {
+.rsvp-existing {
+  border: 1px solid rgba(255, 255, 255, .32);
   font-family: var(--serif);
-  font-size: 1.05rem;
-  font-weight: 400;
-}
-
-.attendance-choice span {
-  font-size: .68rem;
-  margin-top: .4rem;
-}
-
-.guest-checklist {
-  border-bottom: 1px solid rgba(255, 255, 255, .25) !important;
-  display: grid !important;
-  gap: .7rem !important;
-  padding-bottom: 1.4rem !important;
-}
-
-.guest-checklist label {
-  align-items: center;
-  display: flex;
-  font-family: var(--serif);
-  font-size: 1rem;
-  gap: .7rem;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.guest-checklist input {
-  accent-color: var(--sage-dark);
-  display: inline-block;
+  font-size: .95rem;
+  font-style: italic;
   margin: 0;
-  width: auto;
+  padding: 1rem;
+  text-align: center;
 }
 
 .rsvp-placeholder {
@@ -2338,6 +2348,7 @@ footer small {
   .story-copy>p:not(.eyebrow, .script) {
     margin-left: auto;
     margin-right: auto;
+    font-family: var(--serif);
   }
 
   .admin-grid {
@@ -2418,8 +2429,13 @@ footer small {
     min-height: 0;
   }
 
-  .attendance-choice {
+  .guest-response-row {
     grid-template-columns: 1fr;
+  }
+
+  .guest-response-row div {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
   }
 
   .admin-header p {

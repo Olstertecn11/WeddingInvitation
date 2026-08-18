@@ -5,6 +5,7 @@ node_modules
 npm-debug.log*
 .DS_Store
 public/audio/*.mp3
+!public/audio/iris.mp3
 !public/audio/.gitkeep
 
 

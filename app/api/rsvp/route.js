@@ -1,14 +1,28 @@
 import { NextResponse } from "next/server";
 import { getPool } from "@/lib/db";
-import {
-  getClientIp,
-  hashIp,
-  isValidEmail,
-  normalizeName,
-} from "@/lib/rsvp";
 import { cleanText } from "@/lib/invitations";
+import { getClientIp, hashIp, isValidEmail, isValidPhone } from "@/lib/rsvp";
 
 export const runtime = "nodejs";
+
+const ATTENDANCE_STATUSES = new Set(["pending", "attending", "not_attending"]);
+
+function normalizeGuestResponses(value) {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((response) => ({
+      invitationGuestId: Number(response?.invitationGuestId),
+      attendanceStatus: cleanText(response?.attendanceStatus, 32),
+    }))
+    .filter(
+      (response) =>
+        Number.isInteger(response.invitationGuestId) &&
+        response.invitationGuestId > 0 &&
+        ATTENDANCE_STATUSES.has(response.attendanceStatus),
+    )
+    .slice(0, 20);
+}
 
 export async function POST(request) {
   let payload;
@@ -22,32 +36,35 @@ export async function POST(request) {
   }
 
   const code = cleanText(payload.invitationCode, 64);
-  const selectedGuestIds = Array.isArray(payload.selectedGuestIds)
-    ? payload.selectedGuestIds
-        .map(Number)
-        .filter((id) => Number.isInteger(id) && id > 0)
-        .slice(0, 20)
-    : [];
-  const email = cleanText(payload.email, 190).toLowerCase();
-  const attendance = payload.attendance === "yes" ? "yes" : "no";
+  const contactName = cleanText(payload.contactName, 160);
+  const contactEmail = cleanText(payload.contactEmail, 190).toLowerCase();
+  const contactPhone = cleanText(payload.contactPhone, 30);
   const dietaryNotes = cleanText(payload.dietaryNotes, 500);
+  const guestMessage = cleanText(payload.guestMessage, 500);
+  const guestResponses = normalizeGuestResponses(payload.guestResponses);
 
-  if (!code || !isValidEmail(email)) {
+  if (!code || !contactName || !isValidEmail(contactEmail)) {
     return NextResponse.json(
-      { message: "Revisa tu código, nombre y correo electrónico." },
+      { message: "Revisa tu código, nombre de contacto y correo electrónico." },
       { status: 400 },
     );
   }
 
-  const pool = getPool();
-  const connection = await pool.getConnection();
+  if (contactPhone && !isValidPhone(contactPhone)) {
+    return NextResponse.json(
+      { message: "Revisa el teléfono de contacto." },
+      { status: 400 },
+    );
+  }
+
+  const connection = await getPool().getConnection();
 
   try {
     await connection.beginTransaction();
     const [invitations] = await connection.execute(
-      `SELECT id, display_name, max_guests
+      `SELECT id, max_guests
        FROM invitations
-       WHERE code = ? AND active = 1
+       WHERE code = ? AND status = 'active'
        LIMIT 1
        FOR UPDATE`,
       [code],
@@ -56,38 +73,20 @@ export async function POST(request) {
     if (!invitations.length) {
       await connection.rollback();
       return NextResponse.json(
-        { message: "El código de invitación no es válido." },
+        { message: "El código de invitación no es válido o ya no está activo." },
         { status: 404 },
       );
     }
 
     const invitation = invitations[0];
     const [guestRows] = await connection.execute(
-      `SELECT id, full_name, is_primary
+      `SELECT id
        FROM invitation_guests
        WHERE invitation_id = ?
-       ORDER BY is_primary DESC, id`,
+       ORDER BY is_primary DESC, id
+       FOR UPDATE`,
       [invitation.id],
     );
-    const allowedIds = new Set(guestRows.map((guest) => Number(guest.id)));
-    const attendingGuests =
-      attendance === "yes"
-        ? guestRows.filter((guest) => selectedGuestIds.includes(Number(guest.id)))
-        : [];
-
-    if (
-      attendance === "yes" &&
-      (!attendingGuests.length ||
-        selectedGuestIds.some((id) => !allowedIds.has(id)))
-    ) {
-      await connection.rollback();
-      return NextResponse.json(
-        {
-          message: "Selecciona al menos una persona incluida en la invitación.",
-        },
-        { status: 400 },
-      );
-    }
 
     if (!guestRows.length) {
       await connection.rollback();
@@ -97,71 +96,100 @@ export async function POST(request) {
       );
     }
 
-    const [existing] = await connection.execute(
-      "SELECT id FROM rsvps WHERE invitation_id = ? LIMIT 1",
-      [invitation.id],
-    );
-    if (existing.length) {
+    if (guestRows.length > invitation.max_guests) {
       await connection.rollback();
       return NextResponse.json(
-        {
-          message:
-            "Esta invitación ya fue confirmada. Escríbenos si necesitas hacer un cambio.",
-        },
+        { message: "La invitación excede el máximo de invitados configurado." },
         { status: 409 },
       );
     }
 
-    const primaryGuest =
-      attendingGuests.find((guest) => guest.is_primary) ||
-      attendingGuests[0] ||
-      guestRows.find((guest) => guest.is_primary) ||
-      guestRows[0];
-    const companions = attendingGuests
-      .filter((guest) => guest.id !== primaryGuest.id)
-      .map((guest) => guest.full_name);
-
-    await connection.execute(
-      `INSERT INTO rsvps
-       (invitation_id, full_name, normalized_name, email, attendance,
-        companion_names, dietary_notes, ip_hash, user_agent)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        invitation.id,
-        primaryGuest.full_name,
-        normalizeName(primaryGuest.full_name),
-        email,
-        attendance,
-        JSON.stringify(companions),
-        dietaryNotes || null,
-        hashIp(getClientIp(request)),
-        cleanText(request.headers.get("user-agent"), 500),
-      ],
+    const allowedIds = new Set(guestRows.map((guest) => Number(guest.id)));
+    const responseIds = new Set(
+      guestResponses.map((response) => response.invitationGuestId),
     );
 
-    await connection.execute(
-      `UPDATE invitations
-       SET active = 0, used_at = NOW(), updated_at = NOW()
-       WHERE id = ?`,
+    if (
+      guestResponses.length !== guestRows.length ||
+      responseIds.size !== guestRows.length ||
+      guestResponses.some((response) => !allowedIds.has(response.invitationGuestId))
+    ) {
+      await connection.rollback();
+      return NextResponse.json(
+        { message: "Responde la asistencia de cada persona incluida." },
+        { status: 400 },
+      );
+    }
+
+    const rsvpValues = [
+      invitation.id,
+      contactName,
+      contactEmail,
+      contactPhone || null,
+      dietaryNotes || null,
+      guestMessage || null,
+      hashIp(getClientIp(request)),
+      cleanText(request.headers.get("user-agent"), 500) || null,
+    ];
+
+    const [existing] = await connection.execute(
+      "SELECT id FROM rsvps WHERE invitation_id = ? LIMIT 1 FOR UPDATE",
       [invitation.id],
     );
 
+    let rsvpId;
+    if (existing.length) {
+      rsvpId = existing[0].id;
+      await connection.execute(
+        `UPDATE rsvps
+         SET contact_name = ?,
+             contact_email = ?,
+             contact_phone = ?,
+             dietary_notes = ?,
+             guest_message = ?,
+             ip_hash = ?,
+             user_agent = ?,
+             submitted_at = NOW(),
+             updated_at = NOW()
+         WHERE id = ?`,
+        [...rsvpValues.slice(1), rsvpId],
+      );
+    } else {
+      const [result] = await connection.execute(
+        `INSERT INTO rsvps
+         (invitation_id, contact_name, contact_email, contact_phone,
+          dietary_notes, guest_message, ip_hash, user_agent, submitted_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+        rsvpValues,
+      );
+      rsvpId = result.insertId;
+    }
+
+    for (const response of guestResponses) {
+      await connection.execute(
+        `INSERT INTO rsvp_guest_responses
+         (rsvp_id, invitation_guest_id, attendance_status)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE
+           attendance_status = VALUES(attendance_status),
+           updated_at = NOW()`,
+        [
+          rsvpId,
+          response.invitationGuestId,
+          response.attendanceStatus,
+        ],
+      );
+    }
+
     await connection.commit();
     return NextResponse.json({
-      message:
-        attendance === "yes"
-          ? "¡Gracias! Tu asistencia quedó confirmada."
-          : "Gracias por responder. Te tendremos presente en este día.",
+      message: existing.length
+        ? "Actualizamos tu respuesta. Gracias por avisarnos."
+        : "¡Gracias! Tu respuesta quedó registrada.",
     });
   } catch (error) {
     await connection.rollback();
     console.error("RSVP registration failed:", error);
-    if (error.code === "ER_DUP_ENTRY") {
-      return NextResponse.json(
-        { message: "Esta invitación ya fue confirmada." },
-        { status: 409 },
-      );
-    }
     return NextResponse.json(
       {
         message:

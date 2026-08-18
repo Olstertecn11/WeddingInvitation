@@ -15,11 +15,14 @@ function Login({ onSuccess }) {
     event.preventDefault();
     setLoading(true);
     setMessage("");
-    const password = new FormData(event.currentTarget).get("password");
+    const form = new FormData(event.currentTarget);
     const response = await fetch("/api/admin/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ password }),
+      body: JSON.stringify({
+        email: form.get("email"),
+        password: form.get("password"),
+      }),
     });
     const result = await response.json();
     setLoading(false);
@@ -41,8 +44,23 @@ function Login({ onSuccess }) {
         </p>
         <form onSubmit={submit}>
           <label>
+            Correo
+            <input
+              name="email"
+              type="email"
+              autoComplete="username"
+              required
+              autoFocus
+            />
+          </label>
+          <label>
             Contraseña
-            <input name="password" type="password" required autoFocus />
+            <input
+              name="password"
+              type="password"
+              autoComplete="current-password"
+              required
+            />
           </label>
           <button className="admin-primary" disabled={loading}>
             {loading ? "Ingresando..." : "Ingresar"}
@@ -71,6 +89,9 @@ function CreateInvitation({ onCreated }) {
   function changeType(type) {
     setInvitationType(type);
     if (type === "individual") setGuests([guests[0] || emptyGuest()]);
+    if (type === "couple") {
+      setGuests([guests[0] || emptyGuest(), guests[1] || emptyGuest()]);
+    }
   }
 
   async function submit(event) {
@@ -121,6 +142,13 @@ function CreateInvitation({ onCreated }) {
           </button>
           <button
             type="button"
+            className={invitationType === "couple" ? "active" : ""}
+            onClick={() => changeType("couple")}
+          >
+            Pareja
+          </button>
+          <button
+            type="button"
             className={invitationType === "family" ? "active" : ""}
             onClick={() => changeType("family")}
           >
@@ -135,7 +163,9 @@ function CreateInvitation({ onCreated }) {
             placeholder={
               invitationType === "family"
                 ? "Familia Méndez"
-                : "María Fernanda López"
+                : invitationType === "couple"
+                  ? "María y Carlos"
+                  : "María Fernanda López"
             }
             required
           />
@@ -324,21 +354,20 @@ function InvitationDirectory({ refreshKey }) {
             <div className="admin-invitation-main">
               <span
                 className={`admin-status ${
-                  invitation.active ? "pending" : "answered"
+                  invitation.rsvp_id ? "answered" : "pending"
                 }`}
               >
-                {invitation.active
-                  ? "Pendiente"
-                  : invitation.attendance === "yes"
-                    ? "Asistirá"
-                    : "No asistirá"}
+                {invitation.rsvp_id ? "Respondida" : "Pendiente"}
               </span>
               <h3>{invitation.display_name}</h3>
               <p>
                 {invitation.invitation_type === "family"
                   ? "Familia o grupo"
-                  : "Individual"}{" "}
+                  : invitation.invitation_type === "couple"
+                    ? "Pareja"
+                    : "Individual"}{" "}
                 · {invitation.guests.length} persona(s)
+                {invitation.status !== "active" ? ` · ${invitation.status}` : ""}
               </p>
               <div className="admin-member-chips">
                 {invitation.guests.map((guest) => (
@@ -349,18 +378,25 @@ function InvitationDirectory({ refreshKey }) {
                       : guest.gender === "male"
                         ? " · Caballero"
                         : ""}
+                    {guest.attendanceStatus === "attending"
+                      ? " · Asistirá"
+                      : guest.attendanceStatus === "not_attending"
+                        ? " · No asistirá"
+                        : ""}
                   </span>
                 ))}
               </div>
-              {invitation.email && (
-                <small>Respuesta registrada con {invitation.email}</small>
+              {invitation.contact_email && (
+                <small>
+                  Respuesta de {invitation.contact_name} · {invitation.contact_email}
+                </small>
               )}
             </div>
             <div className="admin-invitation-actions">
               <code>{invitation.code}</code>
               <button
                 type="button"
-                disabled={!invitation.active}
+                disabled={invitation.status !== "active"}
                 onClick={() => copyInvitation(invitation.code)}
               >
                 {copied === invitation.code

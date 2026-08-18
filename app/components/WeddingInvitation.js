@@ -27,12 +27,12 @@ const PORTRAIT_PHOTOS = [
 ];
 const MEMORY_PHOTOS = [
   {
-    src: "/our-story.jpg",
+    src: "/images/risas.jpg",
     title: "Risas",
     text: "Para esas fotos espontáneas que cuentan más que mil palabras.",
   },
   {
-    src: "/ermita-watercolor.png",
+    src: "/images/viajes.jpg",
     title: "Viajes",
     text: "Pequeñas escapadas, calles nuevas y recuerdos compartidos.",
   },
@@ -42,9 +42,9 @@ const MEMORY_PHOTOS = [
     text: "Momentos que nos trajeron hasta este capítulo.",
   },
   {
-    src: "/ermita-watercolor.png",
+    src: "/images/celebraciones.jpg",
     title: "Celebración",
-    text: "Un espacio para guardar imágenes del día y de quienes amamos.",
+    text: "Instantes que nos recuerdan que la vida es para disfrutarla juntos.",
   },
 ];
 
@@ -67,7 +67,13 @@ function Botanical({ side = "left" }) {
       <path d="M125 242C92 235 68 214 49 181" />
       <path d="M104 191C111 153 100 121 76 91" />
       <path d="M82 146C52 139 34 120 23 93" />
-      <ellipse cx="107" cy="216" rx="25" ry="10" transform="rotate(25 107 216)" />
+      <ellipse
+        cx="107"
+        cy="216"
+        rx="25"
+        ry="10"
+        transform="rotate(25 107 216)"
+      />
       <ellipse cx="78" cy="165" rx="23" ry="9" transform="rotate(28 78 165)" />
       <ellipse cx="97" cy="139" rx="9" ry="24" transform="rotate(-31 97 139)" />
       <ellipse cx="49" cy="111" rx="20" ry="8" transform="rotate(31 49 111)" />
@@ -130,7 +136,10 @@ function MusicPlayer({ shouldPlay }) {
     const audio = audioRef.current;
     if (!audio || !available) return;
     if (audio.paused) {
-      audio.play().then(() => setPlaying(true)).catch(() => setPlaying(false));
+      audio
+        .play()
+        .then(() => setPlaying(true))
+        .catch(() => setPlaying(false));
     } else {
       audio.pause();
       setPlaying(false);
@@ -201,7 +210,9 @@ function MusicPlayer({ shouldPlay }) {
             type="button"
             className="player-collapse"
             onClick={() => setCompact((current) => !current)}
-            aria-label={compact ? "Expandir reproductor" : "Minimizar reproductor"}
+            aria-label={
+              compact ? "Expandir reproductor" : "Minimizar reproductor"
+            }
           >
             {compact ? "＋" : "−"}
           </button>
@@ -266,8 +277,9 @@ function getSpecialGuest(invitation) {
   if (!invitation?.guests?.length) return null;
   const hasSpecialRole = (person) => ["female", "male"].includes(person.gender);
   const guest =
-    invitation.guests.find((person) => person.isPrimary && hasSpecialRole(person)) ||
-    invitation.guests.find(hasSpecialRole);
+    invitation.guests.find(
+      (person) => person.isPrimary && hasSpecialRole(person),
+    ) || invitation.guests.find(hasSpecialRole);
   if (!guest) return null;
 
   const isLady = guest.gender === "female";
@@ -277,7 +289,9 @@ function getSpecialGuest(invitation) {
     headline: isLady
       ? "Nuestra boda también lleva tu luz"
       : "Nuestra boda también lleva tu presencia",
-    greeting: isLady ? `Querida ${guest.fullName}` : `Querido ${guest.fullName}`,
+    greeting: isLady
+      ? `Querida ${guest.fullName}`
+      : `Querido ${guest.fullName}`,
     body: isLady
       ? "Queremos que vivas este día desde un lugar muy especial. Tu alegría, tu cariño y tu forma de acompañarnos son parte de los recuerdos que queremos guardar para siempre."
       : "Queremos que vivas este día desde un lugar muy especial. Tu apoyo, tu cariño y tu forma de acompañarnos son parte de los recuerdos que queremos guardar para siempre.",
@@ -312,12 +326,14 @@ function SpecialGuestLetter({ guest, onClose }) {
         <div className="special-letter-seal">
           <span>{guest.role}</span>
         </div>
-        <p className="eyebrow terracotta">Una carta especial para ti</p>
+        <p className="eyebrow terracotta bold">Una carta especial para ti</p>
         <h2 id="special-letter-title">{guest.greeting}</h2>
         <p className="script">{guest.headline}</p>
         <p>{guest.body}</p>
         <div className="special-letter-role">
-          <span>Has sido elegid{guest.gender === "female" ? "a" : "o"} como</span>
+          <span>
+            Has sido elegid{guest.gender === "female" ? "a" : "o"} como
+          </span>
           <strong>{guest.role}</strong>
         </div>
         <p className="special-letter-closing">{guest.closing}</p>
@@ -332,7 +348,32 @@ function SpecialGuestLetter({ guest, onClose }) {
 function RsvpForm({ invitationCode, invitation }) {
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
-  const [attendance, setAttendance] = useState("yes");
+  const [guestResponses, setGuestResponses] = useState({});
+
+  useEffect(() => {
+    if (!invitation?.guests?.length) return;
+    const savedResponses = new Map(
+      (invitation.rsvp?.guestResponses || []).map((response) => [
+        Number(response.invitationGuestId),
+        response.attendanceStatus,
+      ]),
+    );
+    setGuestResponses(
+      Object.fromEntries(
+        invitation.guests.map((guest) => [
+          guest.id,
+          savedResponses.get(Number(guest.id)) || "attending",
+        ]),
+      ),
+    );
+  }, [invitation]);
+
+  function updateGuestResponse(guestId, attendanceStatus) {
+    setGuestResponses((current) => ({
+      ...current,
+      [guestId]: attendanceStatus,
+    }));
+  }
 
   async function submitRsvp(event) {
     event.preventDefault();
@@ -342,10 +383,15 @@ function RsvpForm({ invitationCode, invitation }) {
     const form = new FormData(formElement);
     const payload = {
       invitationCode,
-      selectedGuestIds: form.getAll("selectedGuests").map(Number),
-      attendance: form.get("attendance"),
+      contactName: form.get("contactName"),
+      contactEmail: form.get("contactEmail"),
+      contactPhone: form.get("contactPhone"),
       dietaryNotes: form.get("dietaryNotes"),
-      email: form.get("email"),
+      guestMessage: form.get("guestMessage"),
+      guestResponses: invitation.guests.map((guest) => ({
+        invitationGuestId: guest.id,
+        attendanceStatus: guestResponses[guest.id] || "not_attending",
+      })),
     };
 
     try {
@@ -357,7 +403,6 @@ function RsvpForm({ invitationCode, invitation }) {
       const result = await response.json();
       setStatus(response.ok ? "success" : "error");
       setMessage(result.message);
-      if (response.ok) formElement.reset();
     } catch {
       setStatus("error");
       setMessage("No pudimos registrar tu respuesta. Intenta nuevamente.");
@@ -374,59 +419,105 @@ function RsvpForm({ invitationCode, invitation }) {
 
   return (
     <form className="rsvp-form" onSubmit={submitRsvp}>
-      <fieldset className="attendance-choice">
-        <legend>¿Nos acompañan?</legend>
-        <label className={attendance === "yes" ? "selected" : ""}>
-          <input
-            name="attendance"
-            type="radio"
-            value="yes"
-            checked={attendance === "yes"}
-            onChange={() => setAttendance("yes")}
-          />
-          <strong>Sí, ahí estaremos</strong>
-          <span>Será un gusto celebrar juntos</span>
-        </label>
-        <label className={attendance === "no" ? "selected" : ""}>
-          <input
-            name="attendance"
-            type="radio"
-            value="no"
-            checked={attendance === "no"}
-            onChange={() => setAttendance("no")}
-          />
-          <strong>No podremos asistir</strong>
-          <span>Los acompañaremos de corazón</span>
-        </label>
-      </fieldset>
-
-      {attendance === "yes" && (
-        <fieldset className="guest-checklist">
-          <legend>Selecciona quiénes asistirán</legend>
-          {invitation.guests.map((guest) => (
-            <label key={guest.id}>
-              <input
-                name="selectedGuests"
-                type="checkbox"
-                value={guest.id}
-                defaultChecked
-              />
-              <span>{guest.fullName}</span>
-            </label>
-          ))}
-        </fieldset>
+      {invitation.rsvp && (
+        <p className="rsvp-existing">
+          Ya tenemos una respuesta guardada para esta invitación. Puedes
+          actualizarla aquí.
+        </p>
       )}
 
+      <fieldset className="guest-response-list">
+        <legend>Confirma cada invitado</legend>
+        {invitation.guests.map((guest) => (
+          <div className="guest-response-row" key={guest.id}>
+            <span>{guest.fullName}</span>
+            <div>
+              <label
+                className={
+                  guestResponses[guest.id] === "attending" ? "selected" : ""
+                }
+              >
+                <input
+                  name={`guest-${guest.id}`}
+                  type="radio"
+                  value="attending"
+                  checked={guestResponses[guest.id] === "attending"}
+                  onChange={() => updateGuestResponse(guest.id, "attending")}
+                />
+                Asistirá
+              </label>
+              <label
+                className={
+                  guestResponses[guest.id] === "not_attending" ? "selected" : ""
+                }
+              >
+                <input
+                  name={`guest-${guest.id}`}
+                  type="radio"
+                  value="not_attending"
+                  checked={guestResponses[guest.id] === "not_attending"}
+                  onChange={() =>
+                    updateGuestResponse(guest.id, "not_attending")
+                  }
+                />
+                No asistirá
+              </label>
+            </div>
+          </div>
+        ))}
+      </fieldset>
+
+      <label>
+        Nombre de contacto
+        <input
+          name="contactName"
+          defaultValue={invitation.rsvp?.contactName || ""}
+          autoComplete="name"
+          required
+        />
+      </label>
       <label>
         Correo electrónico de contacto
-        <input name="email" type="email" autoComplete="email" required />
+        <input
+          name="contactEmail"
+          type="email"
+          defaultValue={invitation.rsvp?.contactEmail || ""}
+          autoComplete="email"
+          required
+        />
+      </label>
+      <label>
+        Teléfono de contacto
+        <input
+          name="contactPhone"
+          defaultValue={invitation.rsvp?.contactPhone || ""}
+          autoComplete="tel"
+          placeholder="Opcional"
+        />
       </label>
       <label>
         Restricciones alimentarias
-        <input name="dietaryNotes" placeholder="Opcional" />
+        <input
+          name="dietaryNotes"
+          defaultValue={invitation.rsvp?.dietaryNotes || ""}
+          placeholder="Opcional"
+        />
+      </label>
+      <label>
+        Mensaje para los novios
+        <textarea
+          name="guestMessage"
+          defaultValue={invitation.rsvp?.guestMessage || ""}
+          rows="3"
+          placeholder="Opcional"
+        />
       </label>
       <button className="button button-light" disabled={status === "loading"}>
-        {status === "loading" ? "Guardando respuesta..." : "Enviar respuesta"}
+        {status === "loading"
+          ? "Guardando respuesta..."
+          : invitation.rsvp
+            ? "Actualizar respuesta"
+            : "Enviar respuesta"}
       </button>
       {message && <p className={`form-message ${status}`}>{message}</p>}
     </form>
@@ -438,7 +529,7 @@ function ClosedInvitation({ message }) {
     <main className="closed-invitation">
       <div className="closed-card">
         <Monogram />
-        <p className="eyebrow terracotta">Invitación respondida</p>
+        <p className="eyebrow terracotta bold">Invitación no disponible</p>
         <h1>Gracias por visitarnos</h1>
         <p>{message}</p>
         <span>13 · 12 · 2026</span>
@@ -461,7 +552,8 @@ export default function WeddingInvitation({ initialCode = "" }) {
 
   useEffect(() => {
     if (initialCode) return;
-    const queryCode = new URLSearchParams(window.location.search).get("i") || "";
+    const queryCode =
+      new URLSearchParams(window.location.search).get("i") || "";
     if (queryCode) {
       setInvitationCode(queryCode);
       setLookupStatus("loading");
@@ -497,7 +589,10 @@ export default function WeddingInvitation({ initialCode = "" }) {
   useEffect(() => {
     document.body.classList.toggle("invitation-open", opened);
     document.body.classList.toggle("envelope-locked", !opened);
-    document.body.classList.toggle("special-letter-open", Boolean(showSpecialLetter));
+    document.body.classList.toggle(
+      "special-letter-open",
+      Boolean(showSpecialLetter),
+    );
     return () => {
       document.body.classList.remove("invitation-open");
       document.body.classList.remove("envelope-locked");
@@ -506,7 +601,9 @@ export default function WeddingInvitation({ initialCode = "" }) {
   }, [opened, showSpecialLetter]);
 
   useEffect(() => {
-    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const reduced = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
     if (reduced) return;
 
     const revealObserver = new IntersectionObserver(
@@ -600,8 +697,12 @@ export default function WeddingInvitation({ initialCode = "" }) {
       <section className="hero">
         <div className="hero-image" data-parallax="0.11" />
         <div className="hero-shade" />
-        <div className="hero-flower flower-one" data-parallax="-0.08">✦</div>
-        <div className="hero-flower flower-two" data-parallax="0.14">✦</div>
+        <div className="hero-flower flower-one" data-parallax="-0.08">
+          ✦
+        </div>
+        <div className="hero-flower flower-two" data-parallax="0.14">
+          ✦
+        </div>
         <div className="hero-copy">
           <p className="eyebrow">Nuestra boda</p>
           {invitation && (
@@ -624,7 +725,7 @@ export default function WeddingInvitation({ initialCode = "" }) {
         <Botanical />
         <Botanical side="right" />
         <div data-reveal>
-          <p className="eyebrow terracotta">Reserva la fecha</p>
+          <p className="eyebrow terracotta bold">Reserva la fecha</p>
           <h2>Falta muy poco</h2>
           <p className="lead">
             Queremos compartir contigo el comienzo de nuestra aventura más
@@ -648,13 +749,13 @@ export default function WeddingInvitation({ initialCode = "" }) {
           <span className="story-date">Nuestra historia</span>
         </div>
         <div className="story-copy" data-reveal>
-          <p className="eyebrow terracotta">Un camino compartido</p>
+          <p className="eyebrow terracotta bold">Un camino compartido</p>
           <h2>Donde todo comienza</h2>
           <p className="script">Dos vidas, una promesa</p>
-          <p>
-            Entre conversaciones, sueños y pequeños instantes descubrimos que
-            el hogar también puede ser una persona. Ahora queremos celebrar
-            contigo el siguiente capítulo de nuestra historia.
+          <p className="lead-small">
+            Entre conversaciones, sueños y pequeños instantes descubrimos que el
+            hogar también puede ser una persona. Ahora queremos celebrar contigo
+            el siguiente capítulo de nuestra historia.
           </p>
           <div className="story-signature">O & A</div>
         </div>
@@ -662,7 +763,7 @@ export default function WeddingInvitation({ initialCode = "" }) {
 
       <section className="section love-portraits paper">
         <div className="portraits-heading" data-reveal>
-          <p className="eyebrow terracotta">Retratos de nuestro amor</p>
+          <p className="eyebrow terracotta bold">Retratos de nuestro amor</p>
           <h2>Momentos que queremos guardar</h2>
           <p className="lead">
             Un pequeño álbum para llenar con fotografías de nosotros, de los
@@ -716,10 +817,10 @@ export default function WeddingInvitation({ initialCode = "" }) {
           />
         </div>
         <div className="venue-copy" data-reveal>
-          <p className="eyebrow terracotta">El lugar</p>
+          <p className="eyebrow terracotta bold">El lugar</p>
           <h2>Ermita de la Santa Cruz</h2>
           <p className="script">Antigua Guatemala</p>
-          <p>
+          <p className="lead-small">
             Entre muros centenarios, piedra y cielo abierto, celebraremos
             nuestro sí rodeados de historia.
           </p>
@@ -739,7 +840,7 @@ export default function WeddingInvitation({ initialCode = "" }) {
         <div className="memory-heading" data-reveal>
           <p className="eyebrow">Nuestro álbum</p>
           <h2>Capítulos en fotografías</h2>
-          <p>
+          <p className="lead-small">
             Aquí podremos colocar más recuerdos: viajes, aniversarios, fotos
             favoritas y pequeños instantes que también son parte de esta boda.
           </p>
@@ -775,8 +876,8 @@ export default function WeddingInvitation({ initialCode = "" }) {
               <h2>Recomendaciones para disfrutar el día</h2>
             </div>
             <p>
-              La celebración comienza al mediodía en una locación histórica y
-              al aire libre. Estos detalles harán tu llegada más tranquila.
+              La celebración comienza al mediodía en una locación histórica y al
+              aire libre. Estos detalles harán tu llegada más tranquila.
             </p>
           </div>
           <div className="guest-guide-grid">
@@ -831,7 +932,7 @@ export default function WeddingInvitation({ initialCode = "" }) {
 
       <section className="section details paper">
         <div data-reveal>
-          <p className="eyebrow terracotta">Algunos detalles</p>
+          <p className="eyebrow terracotta bold">Algunos detalles</p>
           <h2>Para celebrar juntos</h2>
           <div className="detail-grid">
             <article>
@@ -853,8 +954,8 @@ export default function WeddingInvitation({ initialCode = "" }) {
               <h3>Regalos</h3>
               <p className="script">Lluvia de sobres</p>
               <p>
-                Tu presencia es nuestro mejor regalo. Si deseas tener un
-                detalle con nosotros, agradeceremos un obsequio en efectivo.
+                Tu presencia es nuestro mejor regalo. Si deseas tener un detalle
+                con nosotros, agradeceremos un obsequio en efectivo.
               </p>
             </article>
             <article>
@@ -862,8 +963,8 @@ export default function WeddingInvitation({ initialCode = "" }) {
               <h3>Invitación personal</h3>
               <p className="script">Con cariño para ti</p>
               <p>
-                Esta invitación es válida para las personas indicadas. El
-                enlace se cierra al registrar la respuesta.
+                Esta invitación es válida para las personas indicadas. El enlace
+                se cierra al registrar la respuesta.
               </p>
             </article>
           </div>
@@ -875,12 +976,10 @@ export default function WeddingInvitation({ initialCode = "" }) {
           <p className="eyebrow">R. S. V. P.</p>
           <h2>Confirma tu asistencia</h2>
           <p>
-            Por favor responde antes del <strong>15 de noviembre de 2026</strong>.
+            Por favor responde antes del{" "}
+            <strong>15 de noviembre de 2026</strong>.
           </p>
-          <RsvpForm
-            invitationCode={invitationCode}
-            invitation={invitation}
-          />
+          <RsvpForm invitationCode={invitationCode} invitation={invitation} />
         </div>
       </section>
 
@@ -892,7 +991,9 @@ export default function WeddingInvitation({ initialCode = "" }) {
         <h2>Oliver & Analucía</h2>
         <span>13 · 12 · 2026 · Antigua Guatemala</span>
         <div className="footer-links">
-          <a href={MAP_URL} target="_blank" rel="noreferrer">Ubicación</a>
+          <a href={MAP_URL} target="_blank" rel="noreferrer">
+            Ubicación
+          </a>
           <a href="#save-the-date">Volver al inicio</a>
         </div>
         <small>Hecho para celebrar una historia que apenas comienza.</small>
