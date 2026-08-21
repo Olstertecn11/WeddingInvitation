@@ -16,8 +16,8 @@ async function hashPassword(password) {
     throw new Error("ADMIN_PASSWORD must contain at least 12 characters");
   }
 
-  const salt = crypto.randomBytes(16).toString("base64url");
-  const derivedKey = await scrypt(password, salt, SCRYPT_PARAMS.keyLength, {
+  const saltBytes = crypto.randomBytes(16);
+  const derivedKey = await scrypt(password, saltBytes, SCRYPT_PARAMS.keyLength, {
     N: SCRYPT_PARAMS.N,
     r: SCRYPT_PARAMS.r,
     p: SCRYPT_PARAMS.p,
@@ -28,7 +28,7 @@ async function hashPassword(password) {
     SCRYPT_PARAMS.N,
     SCRYPT_PARAMS.r,
     SCRYPT_PARAMS.p,
-    salt,
+    saltBytes.toString("base64url"),
     derivedKey.toString("base64url"),
   ].join("$");
 }

@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { CEREMONY_ROLE_DETAILS } from "@/lib/ceremony";
 
 const WEDDING_DATE = new Date("2026-12-13T12:00:00-06:00");
 const MAP_URL =
@@ -262,42 +263,34 @@ function MusicPlayer({ shouldPlay }) {
 
 function greetingFor(invitation) {
   if (!invitation) return "Una invitación para ti";
-  if (invitation.invitationType === "family") {
-    return `Querida ${invitation.displayName}`;
-  }
   const guest =
+    invitation.guests.find(
+      (person) => Number(person.id) === Number(invitation.selectedGuestId),
+    ) ||
     invitation.guests.find((person) => person.isPrimary) ||
     invitation.guests[0];
-  if (guest?.gender === "female") return `Querida ${guest.fullName}`;
-  if (guest?.gender === "male") return `Querido ${guest.fullName}`;
   return `Para ${guest?.fullName || invitation.displayName}`;
 }
 
 function getSpecialGuest(invitation) {
   if (!invitation?.guests?.length) return null;
-  const hasSpecialRole = (person) => ["female", "male"].includes(person.gender);
-  const guest =
-    invitation.guests.find(
-      (person) => person.isPrimary && hasSpecialRole(person),
-    ) || invitation.guests.find(hasSpecialRole);
+  if (!invitation.selectedGuestId) return null;
+  const hasSpecialRole = (person) =>
+    ["bridesmaid", "groomsman"].includes(person.ceremonyRole);
+  const guest = invitation.guests.find(
+    (person) =>
+      Number(person.id) === Number(invitation.selectedGuestId) &&
+      hasSpecialRole(person),
+  );
   if (!guest) return null;
 
-  const isLady = guest.gender === "female";
+  const details = CEREMONY_ROLE_DETAILS[guest.ceremonyRole];
+  if (!details) return null;
+
   return {
     ...guest,
-    role: isLady ? "Dama" : "Caballero",
-    headline: isLady
-      ? "Nuestra boda también lleva tu luz"
-      : "Nuestra boda también lleva tu presencia",
-    greeting: isLady
-      ? `Querida ${guest.fullName}`
-      : `Querido ${guest.fullName}`,
-    body: isLady
-      ? "Queremos que vivas este día desde un lugar muy especial. Tu alegría, tu cariño y tu forma de acompañarnos son parte de los recuerdos que queremos guardar para siempre."
-      : "Queremos que vivas este día desde un lugar muy especial. Tu apoyo, tu cariño y tu forma de acompañarnos son parte de los recuerdos que queremos guardar para siempre.",
-    closing: isLady
-      ? "Gracias por ser una dama en esta historia."
-      : "Gracias por ser un caballero en esta historia.",
+    ...details,
+    greeting: `${details.greetingPrefix} ${guest.fullName}`,
   };
 }
 
@@ -306,12 +299,12 @@ function SpecialGuestLetter({ guest, onClose }) {
 
   return (
     <div
-      className={`special-letter-modal ${guest.gender === "female" ? "for-lady" : "for-gentleman"}`}
+      className={`special-letter-modal ${guest.modalClass}`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="special-letter-title"
     >
-      <div className="special-letter-backdrop" onClick={onClose} />
+      <div className="special-letter-backdrop" />
       <article className="special-letter-card">
         <Botanical />
         <Botanical side="right" />
@@ -331,10 +324,21 @@ function SpecialGuestLetter({ guest, onClose }) {
         <p className="script">{guest.headline}</p>
         <p>{guest.body}</p>
         <div className="special-letter-role">
-          <span>
-            Has sido elegid{guest.gender === "female" ? "a" : "o"} como
-          </span>
+          <span>{guest.chosenText}</span>
           <strong>{guest.role}</strong>
+        </div>
+        <div className="special-letter-meeting">
+          <strong>{guest.meetingTitle}</strong>
+          <span>{guest.meetingTime}</span>
+          <span>Zona horaria: America/Guatemala</span>
+          <div>
+            <a href={guest.meetUrl} target="_blank" rel="noreferrer">
+              Unirse por Google Meet
+            </a>
+            <a href={guest.whatsappUrl} target="_blank" rel="noreferrer">
+              Grupo de WhatsApp
+            </a>
+          </div>
         </div>
         <p className="special-letter-closing">{guest.closing}</p>
         <button className="button" type="button" onClick={onClose}>
@@ -342,6 +346,40 @@ function SpecialGuestLetter({ guest, onClose }) {
         </button>
       </article>
     </div>
+  );
+}
+
+function SpecialGuestSection({ guest }) {
+  if (!guest) return null;
+
+  return (
+    <section className={`section special-guest-section ${guest.modalClass}`}>
+      <div className="special-guest-inner" data-reveal>
+        <div>
+          <p className="eyebrow">Información especial</p>
+          <h2>{guest.role}</h2>
+          <p className="script">{guest.greeting}</p>
+          <p>
+            Queremos que tengas a mano los detalles de la reunión y el grupo
+            donde estaremos compartiendo la información para acompañarnos en la
+            ceremonia.
+          </p>
+        </div>
+        <article className="special-guest-card">
+          <span>{guest.meetingTitle}</span>
+          <strong>{guest.meetingTime}</strong>
+          <small>Zona horaria: America/Guatemala</small>
+          <div>
+            <a href={guest.meetUrl} target="_blank" rel="noreferrer">
+              Abrir Google Meet
+            </a>
+            <a href={guest.whatsappUrl} target="_blank" rel="noreferrer">
+              Unirme al WhatsApp
+            </a>
+          </div>
+        </article>
+      </div>
+    </section>
   );
 }
 
@@ -540,6 +578,7 @@ function ClosedInvitation({ message }) {
 
 export default function WeddingInvitation({ initialCode = "" }) {
   const [opened, setOpened] = useState(false);
+  const [specialLetterVisible, setSpecialLetterVisible] = useState(false);
   const [specialLetterDismissed, setSpecialLetterDismissed] = useState(false);
   const [invitationCode, setInvitationCode] = useState(initialCode);
   const [invitation, setInvitation] = useState(null);
@@ -548,7 +587,20 @@ export default function WeddingInvitation({ initialCode = "" }) {
   );
   const [lookupMessage, setLookupMessage] = useState("");
   const specialGuest = getSpecialGuest(invitation);
-  const showSpecialLetter = opened && specialGuest && !specialLetterDismissed;
+  const showSpecialLetter =
+    Boolean(specialGuest) && specialLetterVisible && !specialLetterDismissed;
+
+  function openInvitation() {
+    setOpened(true);
+    if (specialGuest && !specialLetterDismissed) {
+      setSpecialLetterVisible(true);
+    }
+  }
+
+  function closeSpecialLetter() {
+    setSpecialLetterDismissed(true);
+    setSpecialLetterVisible(false);
+  }
 
   useEffect(() => {
     if (initialCode) return;
@@ -585,6 +637,12 @@ export default function WeddingInvitation({ initialCode = "" }) {
       cancelled = true;
     };
   }, [invitationCode]);
+
+  useEffect(() => {
+    if (opened && specialGuest && !specialLetterDismissed) {
+      setSpecialLetterVisible(true);
+    }
+  }, [opened, specialGuest, specialLetterDismissed]);
 
   useEffect(() => {
     document.body.classList.toggle("invitation-open", opened);
@@ -655,7 +713,7 @@ export default function WeddingInvitation({ initialCode = "" }) {
           <p className="eyebrow">Tenemos algo que celebrar</p>
           <button
             className="envelope"
-            onClick={() => setOpened(true)}
+            onClick={openInvitation}
             aria-label="Abrir invitación"
           >
             <span className="envelope-back" />
@@ -675,7 +733,7 @@ export default function WeddingInvitation({ initialCode = "" }) {
               <span>OA</span>
             </span>
           </button>
-          <button className="open-label" onClick={() => setOpened(true)}>
+          <button className="open-label" onClick={openInvitation}>
             <span>Presiona para abrir</span>
           </button>
           {lookupStatus === "loading" && (
@@ -689,7 +747,7 @@ export default function WeddingInvitation({ initialCode = "" }) {
 
       <SpecialGuestLetter
         guest={showSpecialLetter ? specialGuest : null}
-        onClose={() => setSpecialLetterDismissed(true)}
+        onClose={closeSpecialLetter}
       />
 
       <MusicPlayer shouldPlay={opened} />
@@ -705,9 +763,6 @@ export default function WeddingInvitation({ initialCode = "" }) {
         </div>
         <div className="hero-copy">
           <p className="eyebrow">Nuestra boda</p>
-          {invitation && (
-            <p className="personal-welcome">{greetingFor(invitation)}</p>
-          )}
           <h1>
             Oliver <span>&</span> Analucía
           </h1>
@@ -742,6 +797,8 @@ export default function WeddingInvitation({ initialCode = "" }) {
           </a>
         </div>
       </section>
+
+      <SpecialGuestSection guest={specialGuest} />
 
       <section className="section story-section">
         <div className="story-image-wrap" data-reveal>

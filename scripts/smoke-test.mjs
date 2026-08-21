@@ -1,6 +1,6 @@
 import mysql from "mysql2/promise";
 
-const baseUrl = "http://localhost:3000";
+const baseUrl = process.env.BASE_URL || "http://localhost:3000";
 const testName = `Familia Prueba ${Date.now()}`;
 let code;
 
@@ -40,8 +40,8 @@ try {
       displayName: testName,
       personalizedMessage: "Nos hará mucha ilusión celebrar con ustedes.",
       guests: [
-        { fullName: "María Prueba", gender: "female" },
-        { fullName: "Carlos Prueba", gender: "male" },
+        { fullName: "María Prueba", ceremonyRole: "bridesmaid" },
+        { fullName: "Carlos Prueba", ceremonyRole: "groomsman" },
       ],
     }),
   });
@@ -56,19 +56,30 @@ try {
   const searchBody = await search.json();
   assert(search.ok, `Search failed with ${search.status}`);
   assert(searchBody.invitations.length === 1, "Created invitation was not found");
+  assert(
+    searchBody.invitations[0].guests.every((guest) => guest.code),
+    "Guest invitation links were not returned",
+  );
+  const guestLinkCode = searchBody.invitations[0].guests[0].code;
+  const secondGuestLinkCode = searchBody.invitations[0].guests[1].code;
 
   const invitation = await fetch(
-    `${baseUrl}/api/invitation?code=${encodeURIComponent(code)}`,
+    `${baseUrl}/api/invitation?code=${encodeURIComponent(guestLinkCode)}`,
   );
   const invitationBody = await invitation.json();
   assert(invitation.ok, `Public lookup failed with ${invitation.status}`);
-  assert(invitationBody.guests.length === 2, "Guest list is incomplete");
+  assert(invitationBody.guests.length === 1, "Personal invitation returned more than one guest");
+  assert(invitationBody.selectedGuestId, "Personal invitation did not select a guest");
+  assert(
+    invitationBody.guests[0].ceremonyRole === "bridesmaid",
+    "Personal invitation did not return the special ceremony role",
+  );
 
   const rsvp = await fetch(`${baseUrl}/api/rsvp`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      invitationCode: code,
+      invitationCode: guestLinkCode,
       contactName: "María Prueba",
       contactEmail: "prueba@example.com",
       contactPhone: "",
@@ -87,15 +98,15 @@ try {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      invitationCode: code,
+      invitationCode: guestLinkCode,
       contactName: "María Prueba",
       contactEmail: "prueba@example.com",
       contactPhone: "",
       dietaryNotes: "Sin restricciones",
       guestMessage: "Gracias.",
-      guestResponses: invitationBody.guests.map((guest, index) => ({
+      guestResponses: invitationBody.guests.map((guest) => ({
         invitationGuestId: guest.id,
-        attendanceStatus: index === 0 ? "attending" : "not_attending",
+        attendanceStatus: "not_attending",
       })),
     }),
   });
@@ -103,7 +114,7 @@ try {
   assert(updated.ok, updatedBody.message || `Update failed with ${updated.status}`);
 
   const withRsvp = await fetch(
-    `${baseUrl}/api/invitation?code=${encodeURIComponent(code)}`,
+    `${baseUrl}/api/invitation?code=${encodeURIComponent(guestLinkCode)}`,
   );
   const withRsvpBody = await withRsvp.json();
   assert(withRsvp.ok, `Expected active link, received ${withRsvp.status}`);
@@ -114,6 +125,32 @@ try {
     ),
     "Updated guest response was not returned",
   );
+
+  const secondInvitation = await fetch(
+    `${baseUrl}/api/invitation?code=${encodeURIComponent(secondGuestLinkCode)}`,
+  );
+  const secondInvitationBody = await secondInvitation.json();
+  assert(secondInvitation.ok, `Second public lookup failed with ${secondInvitation.status}`);
+  assert(secondInvitationBody.guests.length === 1, "Second personal invitation returned more than one guest");
+
+  const secondRsvp = await fetch(`${baseUrl}/api/rsvp`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      invitationCode: secondGuestLinkCode,
+      contactName: "Carlos Prueba",
+      contactEmail: "carlos.prueba@example.com",
+      contactPhone: "",
+      dietaryNotes: "",
+      guestMessage: "",
+      guestResponses: secondInvitationBody.guests.map((guest) => ({
+        invitationGuestId: guest.id,
+        attendanceStatus: "attending",
+      })),
+    }),
+  });
+  const secondRsvpBody = await secondRsvp.json();
+  assert(secondRsvp.ok, secondRsvpBody.message || `Second RSVP failed with ${secondRsvp.status}`);
 
   const deleted = await fetch(`${baseUrl}/api/admin/invitations`, {
     method: "DELETE",

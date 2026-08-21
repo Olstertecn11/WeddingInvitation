@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 
 const emptyGuest = () => ({
   fullName: "",
-  gender: "unspecified",
+  ceremonyRole: "none",
 });
 
 function Login({ onSuccess }) {
@@ -89,9 +89,6 @@ function CreateInvitation({ onCreated }) {
   function changeType(type) {
     setInvitationType(type);
     if (type === "individual") setGuests([guests[0] || emptyGuest()]);
-    if (type === "couple") {
-      setGuests([guests[0] || emptyGuest(), guests[1] || emptyGuest()]);
-    }
   }
 
   async function submit(event) {
@@ -117,7 +114,7 @@ function CreateInvitation({ onCreated }) {
       formElement.reset();
       setGuests([emptyGuest()]);
       setInvitationType("individual");
-      onCreated(result.invitation.code);
+      onCreated();
     }
   }
 
@@ -142,13 +139,6 @@ function CreateInvitation({ onCreated }) {
           </button>
           <button
             type="button"
-            className={invitationType === "couple" ? "active" : ""}
-            onClick={() => changeType("couple")}
-          >
-            Pareja
-          </button>
-          <button
-            type="button"
             className={invitationType === "family" ? "active" : ""}
             onClick={() => changeType("family")}
           >
@@ -163,9 +153,7 @@ function CreateInvitation({ onCreated }) {
             placeholder={
               invitationType === "family"
                 ? "Familia Méndez"
-                : invitationType === "couple"
-                  ? "María y Carlos"
-                  : "María Fernanda López"
+                : "María Fernanda López"
             }
             required
           />
@@ -197,15 +185,15 @@ function CreateInvitation({ onCreated }) {
                 required
               />
               <select
-                aria-label={`Clasificación del integrante ${index + 1}`}
-                value={guest.gender}
+                aria-label={`Rol ceremonial del integrante ${index + 1}`}
+                value={guest.ceremonyRole}
                 onChange={(event) =>
-                  updateGuest(index, "gender", event.target.value)
+                  updateGuest(index, "ceremonyRole", event.target.value)
                 }
               >
-                <option value="unspecified">No especificar</option>
-                <option value="female">Dama</option>
-                <option value="male">Caballero</option>
+                <option value="none">Sin rol</option>
+                <option value="bridesmaid">Dama de boda</option>
+                <option value="groomsman">Caballero de boda</option>
               </select>
               {invitationType === "family" && guests.length > 1 && (
                 <button
@@ -251,6 +239,7 @@ function InvitationDirectory({ refreshKey }) {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState("");
   const [deletingId, setDeletingId] = useState(null);
+  const [updatingGuestId, setUpdatingGuestId] = useState(null);
   const [message, setMessage] = useState("");
 
   const loadInvitations = useCallback(async (search = "") => {
@@ -318,6 +307,34 @@ function InvitationDirectory({ refreshKey }) {
     }
   }
 
+  async function updateGuestRole(invitationId, guestId, ceremonyRole) {
+    setUpdatingGuestId(guestId);
+    setMessage("");
+    const response = await fetch("/api/admin/invitations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guestId, ceremonyRole }),
+    });
+    const result = await response.json();
+    setUpdatingGuestId(null);
+    setMessage(result.message);
+
+    if (!response.ok) return;
+
+    setInvitations((current) =>
+      current.map((invitation) =>
+        invitation.id === invitationId
+          ? {
+              ...invitation,
+              guests: invitation.guests.map((guest) =>
+                guest.id === guestId ? { ...guest, ceremonyRole } : guest,
+              ),
+            }
+          : invitation,
+      ),
+    );
+  }
+
   return (
     <section className="admin-card admin-directory">
       <div className="admin-section-heading">
@@ -354,10 +371,10 @@ function InvitationDirectory({ refreshKey }) {
             <div className="admin-invitation-main">
               <span
                 className={`admin-status ${
-                  invitation.rsvp_id ? "answered" : "pending"
+                  invitation.rsvpCount ? "answered" : "pending"
                 }`}
               >
-                {invitation.rsvp_id ? "Respondida" : "Pendiente"}
+                {invitation.rsvpCount ? "Con respuestas" : "Pendiente"}
               </span>
               <h3>{invitation.display_name}</h3>
               <p>
@@ -371,38 +388,52 @@ function InvitationDirectory({ refreshKey }) {
               </p>
               <div className="admin-member-chips">
                 {invitation.guests.map((guest) => (
-                  <span key={guest.id}>
-                    {guest.fullName}
-                    {guest.gender === "female"
-                      ? " · Dama"
-                      : guest.gender === "male"
-                        ? " · Caballero"
-                        : ""}
-                    {guest.attendanceStatus === "attending"
-                      ? " · Asistirá"
-                      : guest.attendanceStatus === "not_attending"
-                        ? " · No asistirá"
-                        : ""}
-                  </span>
+                  <div className="admin-member-chip" key={guest.id}>
+                    <span>
+                      {guest.fullName}
+                      {guest.attendanceStatus === "attending"
+                        ? " · Asistirá"
+                        : guest.attendanceStatus === "not_attending"
+                          ? " · No asistirá"
+                          : ""}
+                      {guest.contactEmail ? ` · ${guest.contactEmail}` : ""}
+                    </span>
+                    <select
+                      aria-label={`Rol ceremonial de ${guest.fullName}`}
+                      value={guest.ceremonyRole}
+                      disabled={updatingGuestId === guest.id}
+                      onChange={(event) =>
+                        updateGuestRole(
+                          invitation.id,
+                          guest.id,
+                          event.target.value,
+                        )
+                      }
+                    >
+                      <option value="none">Sin rol</option>
+                      <option value="bridesmaid">Dama de boda</option>
+                      <option value="groomsman">Caballero de boda</option>
+                    </select>
+                  </div>
                 ))}
               </div>
-              {invitation.contact_email && (
-                <small>
-                  Respuesta de {invitation.contact_name} · {invitation.contact_email}
-                </small>
-              )}
             </div>
             <div className="admin-invitation-actions">
-              <code>{invitation.code}</code>
-              <button
-                type="button"
-                disabled={invitation.status !== "active"}
-                onClick={() => copyInvitation(invitation.code)}
-              >
-                {copied === invitation.code
-                  ? "Enlace copiado"
-                  : "Copiar invitación"}
-              </button>
+              <small>Código interno: {invitation.code}</small>
+              <div className="admin-guest-links">
+                {invitation.guests.map((guest) => (
+                  <button
+                    key={guest.id}
+                    type="button"
+                    disabled={invitation.status !== "active"}
+                    onClick={() => copyInvitation(guest.code)}
+                  >
+                    {copied === guest.code
+                      ? "Copiado"
+                      : `Copiar link personal: ${guest.fullName}`}
+                  </button>
+                ))}
+              </div>
               <button
                 className="admin-delete-button"
                 type="button"
@@ -424,7 +455,7 @@ function InvitationDirectory({ refreshKey }) {
 export default function AdminPanel({ initialAuthenticated }) {
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
   const [refreshKey, setRefreshKey] = useState(0);
-  const [lastCode, setLastCode] = useState("");
+  const [createdMessage, setCreatedMessage] = useState("");
 
   if (!authenticated) {
     return <Login onSuccess={() => setAuthenticated(true)} />;
@@ -454,17 +485,19 @@ export default function AdminPanel({ initialAuthenticated }) {
           Crea grupos, organiza integrantes y consulta sus respuestas desde un
           solo lugar.
         </p>
-        {lastCode && (
+        {createdMessage && (
           <span className="admin-created-code">
-            Último código creado: <strong>{lastCode}</strong>
+            {createdMessage}
           </span>
         )}
       </section>
 
       <div className="admin-grid items-start">
         <CreateInvitation
-          onCreated={(code) => {
-            setLastCode(code);
+          onCreated={() => {
+            setCreatedMessage(
+              "Invitación creada. Copia los links personales desde el directorio.",
+            );
             setRefreshKey((key) => key + 1);
           }}
         />

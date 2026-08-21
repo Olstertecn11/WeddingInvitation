@@ -66,6 +66,25 @@ de Vercel después de crear el usuario. La sesión administrativa utiliza un JWT
 en cookie `httpOnly`, se valida contra `admin_sessions`, se revoca al cerrar
 sesión y expira después de 12 horas.
 
+## Correos de confirmación
+
+Al guardar un RSVP, la aplicación puede enviar un correo de confirmación al
+invitado. Configura estas variables en `.env.local` o en el proveedor de
+despliegue:
+
+```text
+SMTP_HOST=
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=
+SMTP_PASSWORD=
+MAIL_FROM="Oliver & Analucía <invitaciones@example.com>"
+```
+
+Si el invitado es dama o caballero de boda, el correo incluye la reunión por
+Google Meet y el grupo de WhatsApp correspondiente. Si no tiene rol especial,
+incluye únicamente la información general de la boda.
+
 ## Estilos
 
 El proyecto utiliza Tailwind CSS para utilidades de layout y responsividad, y

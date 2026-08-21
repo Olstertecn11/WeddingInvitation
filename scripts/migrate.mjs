@@ -1,4 +1,5 @@
 import mysql from "mysql2/promise";
+import crypto from "node:crypto";
 
 const connection = await mysql.createConnection({
   host: process.env.DATABASE_HOST,
@@ -57,6 +58,30 @@ async function dropIndex(table, index) {
   if (!(await indexExists(table, index))) return;
   await connection.query(`ALTER TABLE \`${table}\` DROP INDEX \`${index}\``);
   console.log(`Dropped ${table}.${index}`);
+}
+
+function createGuestCode() {
+  return crypto.randomBytes(9).toString("base64url");
+}
+
+async function assignMissingGuestCodes() {
+  const [guests] = await connection.query(
+    "SELECT id FROM invitation_guests WHERE code IS NULL OR code = ''",
+  );
+
+  for (const guest of guests) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        await connection.execute(
+          "UPDATE invitation_guests SET code = ? WHERE id = ?",
+          [createGuestCode(), guest.id],
+        );
+        break;
+      } catch (error) {
+        if (error.code !== "ER_DUP_ENTRY" || attempt === 4) throw error;
+      }
+    }
+  }
 }
 
 try {
@@ -148,16 +173,19 @@ try {
     await connection.query(`
       CREATE TABLE invitation_guests (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+        code VARCHAR(64) NOT NULL,
         invitation_id BIGINT UNSIGNED NOT NULL,
         full_name VARCHAR(160) NOT NULL,
         normalized_name VARCHAR(160) NOT NULL,
-        gender ENUM('male', 'female', 'unspecified') NOT NULL DEFAULT 'unspecified',
+        ceremony_role ENUM('none', 'bridesmaid', 'groomsman') NOT NULL DEFAULT 'none',
         is_primary BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NULL,
         PRIMARY KEY (id),
+        UNIQUE KEY uq_invitation_guests_code (code),
         UNIQUE KEY uq_invitation_guests_name (invitation_id, normalized_name),
         KEY idx_invitation_guests_invitation (invitation_id),
+        KEY idx_invitation_guests_ceremony_role (ceremony_role),
         KEY idx_invitation_guests_name (normalized_name),
         CONSTRAINT fk_invitation_guests_invitation
           FOREIGN KEY (invitation_id) REFERENCES invitations(id)
@@ -167,6 +195,41 @@ try {
     console.log("Created invitation_guests");
   }
 
+  await addColumn(
+    "invitation_guests",
+    "code",
+    "code VARCHAR(64) NULL AFTER id",
+  );
+  await addColumn(
+    "invitation_guests",
+    "ceremony_role",
+    "ceremony_role ENUM('none', 'bridesmaid', 'groomsman') NOT NULL DEFAULT 'none' AFTER normalized_name",
+  );
+  if (await columnExists("invitation_guests", "gender")) {
+    await connection.query(
+      `UPDATE invitation_guests
+       SET ceremony_role = CASE
+         WHEN gender = 'female' THEN 'bridesmaid'
+         WHEN gender = 'male' THEN 'groomsman'
+         ELSE 'none'
+       END
+       WHERE ceremony_role = 'none'`,
+    );
+  }
+  if (!(await indexExists("invitation_guests", "uq_invitation_guests_code"))) {
+    await connection.query(
+      "ALTER TABLE invitation_guests ADD UNIQUE KEY uq_invitation_guests_code (code)",
+    );
+  }
+  await assignMissingGuestCodes();
+  await connection.query(
+    "ALTER TABLE invitation_guests MODIFY code VARCHAR(64) NOT NULL",
+  );
+  if (!(await indexExists("invitation_guests", "idx_invitation_guests_ceremony_role"))) {
+    await connection.query(
+      "ALTER TABLE invitation_guests ADD KEY idx_invitation_guests_ceremony_role (ceremony_role)",
+    );
+  }
   await addColumn(
     "invitation_guests",
     "updated_at",
@@ -188,17 +251,25 @@ try {
   for (const invitation of missingGuests) {
     await connection.execute(
       `INSERT INTO invitation_guests
-       (invitation_id, full_name, normalized_name, gender, is_primary)
-       VALUES (?, ?, LOWER(?), 'unspecified', 1)`,
-      [invitation.id, invitation.display_name, invitation.display_name],
+       (code, invitation_id, full_name, normalized_name, ceremony_role, is_primary)
+       VALUES (?, ?, ?, LOWER(?), 'none', 1)`,
+      [
+        createGuestCode(),
+        invitation.id,
+        invitation.display_name,
+        invitation.display_name,
+      ],
     );
   }
+
+  await dropColumn("invitation_guests", "gender");
 
   if (!(await tableExists("rsvps"))) {
     await connection.query(`
       CREATE TABLE rsvps (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
         invitation_id BIGINT UNSIGNED NOT NULL,
+        invitation_guest_id BIGINT UNSIGNED NULL,
         contact_name VARCHAR(160) NOT NULL,
         contact_email VARCHAR(190) NOT NULL,
         contact_phone VARCHAR(30) NULL,
@@ -210,11 +281,15 @@ try {
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
         updated_at DATETIME NULL,
         PRIMARY KEY (id),
-        UNIQUE KEY uq_rsvps_invitation (invitation_id),
+        UNIQUE KEY uq_rsvps_invitation_guest (invitation_guest_id),
+        KEY idx_rsvps_invitation (invitation_id),
         KEY idx_rsvps_contact_email (contact_email),
         KEY idx_rsvps_ip_hash (ip_hash),
         CONSTRAINT fk_rsvps_invitation
           FOREIGN KEY (invitation_id) REFERENCES invitations(id)
+          ON DELETE CASCADE,
+        CONSTRAINT fk_rsvps_invitation_guest
+          FOREIGN KEY (invitation_guest_id) REFERENCES invitation_guests(id)
           ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
@@ -223,8 +298,13 @@ try {
 
   await addColumn(
     "rsvps",
+    "invitation_guest_id",
+    "invitation_guest_id BIGINT UNSIGNED NULL AFTER invitation_id",
+  );
+  await addColumn(
+    "rsvps",
     "contact_name",
-    "contact_name VARCHAR(160) NULL AFTER invitation_id",
+    "contact_name VARCHAR(160) NULL AFTER invitation_guest_id",
   );
   await addColumn(
     "rsvps",
@@ -278,6 +358,20 @@ try {
   await dropColumn("rsvps", "email");
   await dropColumn("rsvps", "attendance");
   await dropColumn("rsvps", "companion_names");
+  await dropIndex("rsvps", "uq_rsvps_invitation");
+  await dropIndex("rsvps", "uq_rsvps_invitation_id");
+
+  if (!(await indexExists("rsvps", "uq_rsvps_invitation_guest"))) {
+    await connection.query(
+      "ALTER TABLE rsvps ADD UNIQUE KEY uq_rsvps_invitation_guest (invitation_guest_id)",
+    );
+  }
+
+  if (!(await indexExists("rsvps", "idx_rsvps_invitation"))) {
+    await connection.query(
+      "ALTER TABLE rsvps ADD KEY idx_rsvps_invitation (invitation_id)",
+    );
+  }
 
   if (!(await indexExists("rsvps", "idx_rsvps_contact_email"))) {
     await connection.query(
@@ -317,6 +411,12 @@ try {
   if (!(await constraintExists("fk_rsvp_guest_responses_invitation_guest"))) {
     await connection.query(
       "ALTER TABLE rsvp_guest_responses ADD CONSTRAINT fk_rsvp_guest_responses_invitation_guest FOREIGN KEY (invitation_guest_id) REFERENCES invitation_guests(id) ON DELETE CASCADE",
+    );
+  }
+
+  if (!(await constraintExists("fk_rsvps_invitation_guest"))) {
+    await connection.query(
+      "ALTER TABLE rsvps ADD CONSTRAINT fk_rsvps_invitation_guest FOREIGN KEY (invitation_guest_id) REFERENCES invitation_guests(id) ON DELETE CASCADE",
     );
   }
 

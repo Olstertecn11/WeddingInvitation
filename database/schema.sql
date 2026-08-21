@@ -18,16 +18,19 @@ CREATE TABLE invitations (
 
 CREATE TABLE invitation_guests (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  code VARCHAR(64) NOT NULL,
   invitation_id BIGINT UNSIGNED NOT NULL,
   full_name VARCHAR(160) NOT NULL,
   normalized_name VARCHAR(160) NOT NULL,
-  gender ENUM('male', 'female', 'unspecified') NOT NULL DEFAULT 'unspecified',
+  ceremony_role ENUM('none', 'bridesmaid', 'groomsman') NOT NULL DEFAULT 'none',
   is_primary BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL,
   PRIMARY KEY (id),
+  UNIQUE KEY uq_invitation_guests_code (code),
   UNIQUE KEY uq_invitation_guests_name (invitation_id, normalized_name),
   KEY idx_invitation_guests_invitation (invitation_id),
+  KEY idx_invitation_guests_ceremony_role (ceremony_role),
   KEY idx_invitation_guests_name (normalized_name),
   CONSTRAINT fk_invitation_guests_invitation
     FOREIGN KEY (invitation_id) REFERENCES invitations(id)
@@ -37,6 +40,7 @@ CREATE TABLE invitation_guests (
 CREATE TABLE rsvps (
   id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
   invitation_id BIGINT UNSIGNED NOT NULL,
+  invitation_guest_id BIGINT UNSIGNED NULL,
   contact_name VARCHAR(160) NOT NULL,
   contact_email VARCHAR(190) NOT NULL,
   contact_phone VARCHAR(30) NULL,
@@ -48,11 +52,15 @@ CREATE TABLE rsvps (
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL,
   PRIMARY KEY (id),
-  UNIQUE KEY uq_rsvps_invitation (invitation_id),
+  UNIQUE KEY uq_rsvps_invitation_guest (invitation_guest_id),
+  KEY idx_rsvps_invitation (invitation_id),
   KEY idx_rsvps_contact_email (contact_email),
   KEY idx_rsvps_ip_hash (ip_hash),
   CONSTRAINT fk_rsvps_invitation
     FOREIGN KEY (invitation_id) REFERENCES invitations(id)
+    ON DELETE CASCADE,
+  CONSTRAINT fk_rsvps_invitation_guest
+    FOREIGN KEY (invitation_guest_id) REFERENCES invitation_guests(id)
     ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -119,13 +127,13 @@ VALUES
   );
 
 INSERT INTO invitation_guests
-  (invitation_id, full_name, normalized_name, gender, is_primary)
-SELECT id, 'Nombre de invitado', 'nombre de invitado', 'unspecified', TRUE
+  (code, invitation_id, full_name, normalized_name, ceremony_role, is_primary)
+SELECT 'INVITADO-TZUNUN-2026', id, 'Nombre de invitado', 'nombre de invitado', 'none', TRUE
 FROM invitations
 WHERE code = 'FAMILIA-TZUNUN-2026';
 
 INSERT INTO invitation_guests
-  (invitation_id, full_name, normalized_name, gender, is_primary)
-SELECT id, 'Nombre de acompañante', 'nombre de acompanante', 'unspecified', FALSE
+  (code, invitation_id, full_name, normalized_name, ceremony_role, is_primary)
+SELECT 'ACOMPANANTE-TZUNUN-2026', id, 'Nombre de acompañante', 'nombre de acompanante', 'none', FALSE
 FROM invitations
 WHERE code = 'FAMILIA-TZUNUN-2026';

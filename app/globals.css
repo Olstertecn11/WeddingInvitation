@@ -595,7 +595,7 @@ blockquote {
 }
 
 .script {
-  color: var(--sage);
+  color: #c99e94;
   font-family: var(--script);
   font-size: 2rem;
   margin: -0.6rem 0 1.6rem;
@@ -1134,7 +1134,7 @@ footer>span {
   justify-content: center;
   padding: clamp(1.1rem, 4vw, 3rem);
   position: fixed;
-  z-index: 90;
+  z-index: 140;
 }
 
 .special-letter-backdrop {
@@ -1281,6 +1281,48 @@ footer>span {
   font-weight: 400;
 }
 
+.special-letter-meeting {
+  background: rgba(232, 221, 209, .5);
+  border: 1px solid rgba(117, 63, 50, .16);
+  display: grid;
+  gap: .5rem;
+  margin: 0 auto 1.5rem;
+  max-width: 470px;
+  padding: 1rem;
+  text-align: left;
+}
+
+.special-letter-meeting strong {
+  color: var(--terracotta-dark);
+  font-family: var(--serif);
+  font-size: 1rem;
+  font-weight: 400;
+}
+
+.special-letter-meeting span {
+  color: var(--sage-dark);
+  font-size: .72rem;
+  line-height: 1.5;
+}
+
+.special-letter-meeting div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  margin-top: .4rem;
+}
+
+.special-letter-meeting a {
+  background: #fffaf3;
+  border: 1px solid rgba(117, 63, 50, .22);
+  color: var(--terracotta-dark);
+  font-size: .62rem;
+  letter-spacing: .08em;
+  padding: .65rem .75rem;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
 .special-letter-closing {
   color: var(--sage-dark);
   font-family: var(--serif);
@@ -1298,6 +1340,95 @@ footer>span {
 
 .special-letter-modal.for-gentleman .special-letter-role strong {
   color: var(--sage-dark);
+}
+
+.special-guest-section {
+  background:
+    linear-gradient(rgba(63, 73, 61, .92), rgba(63, 73, 61, .9)),
+    url("/images/DSC_0014.JPG") center / cover;
+  color: #fffaf3;
+  padding: clamp(4rem, 8vw, 7rem) clamp(1.2rem, 5vw, 4rem);
+}
+
+.special-guest-section.for-lady {
+  background:
+    linear-gradient(rgba(117, 63, 50, .9), rgba(117, 63, 50, .88)),
+    url("/images/DSC_0014.JPG") center / cover;
+}
+
+.special-guest-inner {
+  align-items: center;
+  display: grid;
+  gap: clamp(2rem, 5vw, 4rem);
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 460px);
+  margin: 0 auto;
+  max-width: 1120px;
+}
+
+.special-guest-inner h2 {
+  color: #fffaf3;
+  font-family: var(--serif);
+  font-size: clamp(3rem, 8vw, 6.6rem);
+  font-weight: 400;
+  line-height: .9;
+  margin: .8rem 0;
+}
+
+.special-guest-inner p:not(.eyebrow, .script) {
+  line-height: 1.9;
+  margin: 1.2rem 0 0;
+  max-width: 570px;
+  opacity: .86;
+}
+
+.special-guest-card {
+  background: rgba(255, 250, 243, .96);
+  border: 1px solid rgba(255, 255, 255, .35);
+  box-shadow: 0 24px 70px rgba(30, 24, 20, .26);
+  color: var(--ink);
+  display: grid;
+  gap: .8rem;
+  padding: clamp(1.4rem, 4vw, 2.4rem);
+}
+
+.special-guest-card span {
+  color: var(--terracotta-dark);
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  line-height: 1.25;
+}
+
+.special-guest-card strong {
+  color: var(--sage-dark);
+  font-size: .95rem;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+.special-guest-card small {
+  color: #746a63;
+  font-size: .74rem;
+}
+
+.special-guest-card div {
+  display: grid;
+  gap: .6rem;
+  margin-top: .8rem;
+}
+
+.special-guest-card a {
+  background: #8e4736;
+  color: white;
+  font-size: .68rem;
+  letter-spacing: .08em;
+  padding: .85rem 1rem;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+}
+
+.special-guest-section.for-gentleman .special-guest-card a {
+  background: #3f493d;
 }
 
 .music-player {
@@ -2228,10 +2359,22 @@ footer small {
   margin: .8rem 0;
 }
 
-.admin-member-chips span {
+.admin-member-chip {
   background: #eee5da;
+  display: grid;
+  gap: .45rem;
   font-size: .62rem;
   padding: .35rem .55rem;
+}
+
+.admin-member-chip select {
+  background: #fffaf3;
+  border: 1px solid rgba(63, 55, 50, .14);
+  color: #685a50;
+  font-size: .62rem;
+  margin: 0;
+  min-height: 30px;
+  padding: .25rem .35rem;
 }
 
 .admin-invitation-actions {
@@ -2259,6 +2402,18 @@ footer small {
 .admin-invitation-actions button:disabled {
   background: #c7bdb4;
   cursor: not-allowed;
+}
+
+.admin-guest-links {
+  display: grid;
+  gap: .45rem;
+  justify-items: end;
+}
+
+.admin-guest-links button {
+  max-width: 220px;
+  overflow-wrap: anywhere;
+  text-align: right;
 }
 
 .admin-invitation-actions .admin-delete-button {
@@ -2392,6 +2547,14 @@ footer small {
 
   .special-letter-card .script {
     font-size: 1.55rem;
+  }
+
+  .special-guest-inner {
+    grid-template-columns: 1fr;
+  }
+
+  .special-guest-inner h2 {
+    font-size: 3rem;
   }
 
   .music-player .vinyl {

@@ -6,15 +6,40 @@ ALTER TABLE invitations
   ADD KEY idx_invitations_status (status);
 
 ALTER TABLE invitation_guests
+  ADD COLUMN code VARCHAR(64) NULL AFTER id,
+  ADD COLUMN ceremony_role ENUM('none', 'bridesmaid', 'groomsman') NOT NULL DEFAULT 'none' AFTER normalized_name,
+  ADD UNIQUE KEY uq_invitation_guests_code (code),
+  ADD KEY idx_invitation_guests_ceremony_role (ceremony_role),
   ADD COLUMN updated_at DATETIME NULL AFTER created_at,
   ADD UNIQUE KEY uq_invitation_guests_name (invitation_id, normalized_name);
 
+UPDATE invitation_guests
+SET ceremony_role = CASE
+  WHEN gender = 'female' THEN 'bridesmaid'
+  WHEN gender = 'male' THEN 'groomsman'
+  ELSE 'none'
+END
+WHERE ceremony_role = 'none';
+
+UPDATE invitation_guests
+SET code = REPLACE(UUID(), '-', '')
+WHERE code IS NULL OR code = '';
+
+ALTER TABLE invitation_guests
+  MODIFY code VARCHAR(64) NOT NULL,
+  DROP COLUMN gender;
+
 ALTER TABLE rsvps
+  ADD COLUMN invitation_guest_id BIGINT UNSIGNED NULL AFTER invitation_id,
   ADD COLUMN contact_name VARCHAR(160) NOT NULL AFTER invitation_id,
   ADD COLUMN contact_email VARCHAR(190) NOT NULL AFTER contact_name,
   ADD COLUMN contact_phone VARCHAR(30) NULL AFTER contact_email,
   ADD COLUMN guest_message VARCHAR(500) NULL AFTER dietary_notes,
   ADD COLUMN submitted_at DATETIME NOT NULL AFTER user_agent,
+  DROP INDEX uq_rsvps_invitation,
+  DROP INDEX uq_rsvps_invitation_id,
+  ADD UNIQUE KEY uq_rsvps_invitation_guest (invitation_guest_id),
+  ADD KEY idx_rsvps_invitation (invitation_id),
   ADD KEY idx_rsvps_contact_email (contact_email);
 
 CREATE TABLE rsvp_guest_responses (

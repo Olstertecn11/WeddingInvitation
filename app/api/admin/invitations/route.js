@@ -4,6 +4,7 @@ import { getPool } from "@/lib/db";
 import {
   cleanText,
   createInvitationCode,
+  normalizeCeremonyRole,
   normalizeGuests,
 } from "@/lib/invitations";
 
@@ -26,11 +27,8 @@ export async function GET(request) {
     const [invitations] = await getPool().execute(
       `SELECT i.id, i.code, i.display_name, i.invitation_type,
               i.status, i.max_guests, i.personalized_message,
-              i.first_opened_at, i.last_opened_at, i.created_at,
-              r.id AS rsvp_id, r.contact_name, r.contact_email,
-              r.contact_phone, r.submitted_at
+              i.first_opened_at, i.last_opened_at, i.created_at
        FROM invitations i
-       LEFT JOIN rsvps r ON r.invitation_id = i.id
        WHERE (? = '' OR i.display_name LIKE ? OR i.code LIKE ?
               OR EXISTS (
                 SELECT 1 FROM invitation_guests ig
@@ -48,16 +46,23 @@ export async function GET(request) {
     const ids = invitations.map((invitation) => invitation.id);
     const placeholders = ids.map(() => "?").join(",");
     const [guests] = await getPool().execute(
-      `SELECT id, invitation_id, full_name, gender, is_primary
+      `SELECT id, code, invitation_id, full_name, ceremony_role, is_primary
        FROM invitation_guests
        WHERE invitation_id IN (${placeholders})
        ORDER BY invitation_id, is_primary DESC, id`,
       ids,
     );
 
-    const rsvpIds = invitations
-      .map((invitation) => invitation.rsvp_id)
-      .filter((id) => Number.isInteger(Number(id)));
+    const [rsvps] = await getPool().execute(
+      `SELECT id, invitation_id, invitation_guest_id, contact_name,
+              contact_email, contact_phone, submitted_at
+       FROM rsvps
+       WHERE invitation_id IN (${placeholders})
+       ORDER BY submitted_at DESC, id DESC`,
+      ids,
+    );
+
+    const rsvpIds = rsvps.map((rsvp) => rsvp.id);
     let responses = [];
     if (rsvpIds.length) {
       const responsePlaceholders = rsvpIds.map(() => "?").join(",");
@@ -72,20 +77,38 @@ export async function GET(request) {
 
     const invitationsWithGuests = invitations.map((invitation) => ({
       ...invitation,
+      rsvpCount: rsvps.filter((rsvp) => rsvp.invitation_id === invitation.id)
+        .length,
       guests: guests
         .filter((guest) => guest.invitation_id === invitation.id)
-        .map((guest) => ({
-          id: guest.id,
-          fullName: guest.full_name,
-          gender: guest.gender,
-          isPrimary: Boolean(guest.is_primary),
-          attendanceStatus:
-            responses.find(
-              (response) =>
-                response.rsvp_id === invitation.rsvp_id &&
-                response.invitation_guest_id === guest.id,
-            )?.attendance_status || "pending",
-        })),
+        .map((guest) => {
+          const guestRsvp =
+            rsvps.find(
+              (rsvp) =>
+                rsvp.invitation_id === invitation.id &&
+                Number(rsvp.invitation_guest_id) === Number(guest.id),
+            ) ||
+            rsvps.find(
+              (rsvp) =>
+                rsvp.invitation_id === invitation.id &&
+                rsvp.invitation_guest_id === null,
+            );
+          return {
+            id: guest.id,
+            code: guest.code,
+            fullName: guest.full_name,
+            ceremonyRole: guest.ceremony_role,
+            isPrimary: Boolean(guest.is_primary),
+            contactName: guestRsvp?.contact_name || null,
+            contactEmail: guestRsvp?.contact_email || null,
+            attendanceStatus:
+              responses.find(
+                (response) =>
+                  response.rsvp_id === guestRsvp?.id &&
+                  response.invitation_guest_id === guest.id,
+              )?.attendance_status || "pending",
+          };
+        }),
     }));
 
     return NextResponse.json({ invitations: invitationsWithGuests });
@@ -178,18 +201,27 @@ export async function POST(request) {
     }
 
     for (const guest of guests) {
-      await connection.execute(
-        `INSERT INTO invitation_guests
-         (invitation_id, full_name, normalized_name, gender, is_primary)
-         VALUES (?, ?, ?, ?, ?)`,
-        [
-          invitationId,
-          guest.fullName,
-          guest.normalizedName,
-          guest.gender,
-          guest.isPrimary ? 1 : 0,
-        ],
-      );
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          await connection.execute(
+            `INSERT INTO invitation_guests
+             (code, invitation_id, full_name, normalized_name, ceremony_role,
+              is_primary)
+             VALUES (?, ?, ?, ?, ?, ?)`,
+            [
+              createInvitationCode(),
+              invitationId,
+              guest.fullName,
+              guest.normalizedName,
+              guest.ceremonyRole,
+              guest.isPrimary ? 1 : 0,
+            ],
+          );
+          break;
+        } catch (error) {
+          if (error.code !== "ER_DUP_ENTRY" || attempt === 2) throw error;
+        }
+      }
     }
 
     await connection.commit();
@@ -253,6 +285,57 @@ export async function DELETE(request) {
     console.error("Admin invitation deletion failed:", error);
     return NextResponse.json(
       { message: "No pudimos eliminar la invitación." },
+      { status: 500 },
+    );
+  }
+}
+
+export async function PATCH(request) {
+  if (!(await requestIsAdmin(request))) return unauthorized();
+
+  let payload;
+  try {
+    payload = await request.json();
+  } catch {
+    return NextResponse.json(
+      { message: "La solicitud de actualización no es válida." },
+      { status: 400 },
+    );
+  }
+
+  const guestId = Number(payload.guestId);
+  const ceremonyRole = normalizeCeremonyRole(payload.ceremonyRole);
+
+  if (!Number.isInteger(guestId) || guestId < 1) {
+    return NextResponse.json(
+      { message: "El invitado indicado no es válido." },
+      { status: 400 },
+    );
+  }
+
+  try {
+    const [result] = await getPool().execute(
+      `UPDATE invitation_guests
+       SET ceremony_role = ?, updated_at = NOW()
+       WHERE id = ?`,
+      [ceremonyRole, guestId],
+    );
+
+    if (!result.affectedRows) {
+      return NextResponse.json(
+        { message: "El invitado ya no existe." },
+        { status: 404 },
+      );
+    }
+
+    return NextResponse.json({
+      message: "Rol actualizado correctamente.",
+      guest: { id: guestId, ceremonyRole },
+    });
+  } catch (error) {
+    console.error("Admin guest update failed:", error);
+    return NextResponse.json(
+      { message: "No pudimos actualizar el rol del invitado." },
       { status: 500 },
     );
   }

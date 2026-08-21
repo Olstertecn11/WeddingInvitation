@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { getPool } from "@/lib/db";
 import { cleanText } from "@/lib/invitations";
 import { getClientIp, hashIp, isValidEmail, isValidPhone } from "@/lib/rsvp";
+import { sendRsvpConfirmationEmail } from "@/lib/rsvp-email";
 
 export const runtime = "nodejs";
 
@@ -57,12 +58,22 @@ export async function POST(request) {
     );
   }
 
-  const connection = await getPool().getConnection();
+  let connection;
 
   try {
+    connection = await getPool().getConnection();
     await connection.beginTransaction();
+    const [guestCodeInvitations] = await connection.execute(
+      `SELECT i.id, i.display_name, i.max_guests, ig.id AS selected_guest_id
+       FROM invitation_guests ig
+       INNER JOIN invitations i ON i.id = ig.invitation_id
+       WHERE ig.code = ? AND i.status = 'active'
+       LIMIT 1
+       FOR UPDATE`,
+      [code],
+    );
     const [invitations] = await connection.execute(
-      `SELECT id, max_guests
+      `SELECT id, display_name, max_guests
        FROM invitations
        WHERE code = ? AND status = 'active'
        LIMIT 1
@@ -70,7 +81,9 @@ export async function POST(request) {
       [code],
     );
 
-    if (!invitations.length) {
+    const invitation = guestCodeInvitations[0] || invitations[0];
+    const selectedGuestId = invitation?.selected_guest_id || null;
+    if (!invitation) {
       await connection.rollback();
       return NextResponse.json(
         { message: "El código de invitación no es válido o ya no está activo." },
@@ -78,14 +91,14 @@ export async function POST(request) {
       );
     }
 
-    const invitation = invitations[0];
     const [guestRows] = await connection.execute(
-      `SELECT id
+      `SELECT id, code, full_name, ceremony_role
        FROM invitation_guests
        WHERE invitation_id = ?
+         ${selectedGuestId ? "AND id = ?" : ""}
        ORDER BY is_primary DESC, id
        FOR UPDATE`,
-      [invitation.id],
+      selectedGuestId ? [invitation.id, selectedGuestId] : [invitation.id],
     );
 
     if (!guestRows.length) {
@@ -123,6 +136,7 @@ export async function POST(request) {
 
     const rsvpValues = [
       invitation.id,
+      selectedGuestId,
       contactName,
       contactEmail,
       contactPhone || null,
@@ -133,8 +147,16 @@ export async function POST(request) {
     ];
 
     const [existing] = await connection.execute(
-      "SELECT id FROM rsvps WHERE invitation_id = ? LIMIT 1 FOR UPDATE",
-      [invitation.id],
+      `SELECT id FROM rsvps
+       WHERE invitation_id = ?
+         AND ${
+           selectedGuestId
+             ? "invitation_guest_id = ?"
+             : "invitation_guest_id IS NULL"
+         }
+       LIMIT 1
+       FOR UPDATE`,
+      selectedGuestId ? [invitation.id, selectedGuestId] : [invitation.id],
     );
 
     let rsvpId;
@@ -152,14 +174,14 @@ export async function POST(request) {
              submitted_at = NOW(),
              updated_at = NOW()
          WHERE id = ?`,
-        [...rsvpValues.slice(1), rsvpId],
+        [...rsvpValues.slice(2), rsvpId],
       );
     } else {
       const [result] = await connection.execute(
         `INSERT INTO rsvps
-         (invitation_id, contact_name, contact_email, contact_phone,
+         (invitation_id, invitation_guest_id, contact_name, contact_email, contact_phone,
           dietary_notes, guest_message, ip_hash, user_agent, submitted_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
         rsvpValues,
       );
       rsvpId = result.insertId;
@@ -182,22 +204,55 @@ export async function POST(request) {
     }
 
     await connection.commit();
+    const confirmedGuest =
+      guestRows.find((guest) => Number(guest.id) === Number(selectedGuestId)) ||
+      guestRows[0];
+    const confirmedResponse =
+      guestResponses.find(
+        (response) =>
+          Number(response.invitationGuestId) === Number(confirmedGuest?.id),
+      ) || guestResponses[0];
+
+    after(() => {
+      sendRsvpConfirmationEmail({
+        to: contactEmail,
+        invitation: {
+          id: invitation.id,
+          displayName: invitation.display_name,
+        },
+        guest: {
+          id: confirmedGuest.id,
+          code: confirmedGuest.code,
+          fullName: confirmedGuest.full_name,
+          ceremonyRole: confirmedGuest.ceremony_role,
+        },
+        attendanceStatus: confirmedResponse.attendanceStatus,
+      }).catch((error) => {
+        console.warn(
+          "RSVP confirmation email failed:",
+          error?.code || error?.message || error,
+        );
+      });
+    });
+
     return NextResponse.json({
       message: existing.length
         ? "Actualizamos tu respuesta. Gracias por avisarnos."
         : "¡Gracias! Tu respuesta quedó registrada.",
     });
   } catch (error) {
-    await connection.rollback();
+    if (connection) await connection.rollback();
     console.error("RSVP registration failed:", error);
     return NextResponse.json(
       {
         message:
-          "No pudimos guardar tu respuesta. Por favor intenta nuevamente.",
+          error?.code === "ETIMEDOUT"
+            ? "La base de datos tardó demasiado en responder. Intenta nuevamente en unos segundos."
+            : "No pudimos guardar tu respuesta. Por favor intenta nuevamente.",
       },
-      { status: 500 },
+      { status: error?.code === "ETIMEDOUT" ? 503 : 500 },
     );
   } finally {
-    connection.release();
+    if (connection) connection.release();
   }
 }
