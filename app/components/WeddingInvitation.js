@@ -1035,8 +1035,8 @@ export default function WeddingInvitation({ initialCode = "" }) {
           <p className="eyebrow">R. S. V. P.</p>
           <h2>Confirma tu asistencia</h2>
           <p>
-            Por favor responde antes del{" "}
-            <strong>15 de noviembre de 2026</strong>.
+            Por favor responde antes del <strong>1 de noviembre de 2026</strong>
+            .
           </p>
           <RsvpForm invitationCode={invitationCode} invitation={invitation} />
         </div>
