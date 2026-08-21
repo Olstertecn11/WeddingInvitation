@@ -22,6 +22,7 @@ CREATE TABLE invitation_guests (
   invitation_id BIGINT UNSIGNED NOT NULL,
   full_name VARCHAR(160) NOT NULL,
   normalized_name VARCHAR(160) NOT NULL,
+  owner_side ENUM('bride', 'groom', 'shared') NOT NULL DEFAULT 'shared',
   ceremony_role ENUM('none', 'bridesmaid', 'groomsman') NOT NULL DEFAULT 'none',
   is_primary BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -30,6 +31,7 @@ CREATE TABLE invitation_guests (
   UNIQUE KEY uq_invitation_guests_code (code),
   UNIQUE KEY uq_invitation_guests_name (invitation_id, normalized_name),
   KEY idx_invitation_guests_invitation (invitation_id),
+  KEY idx_invitation_guests_owner_side (owner_side),
   KEY idx_invitation_guests_ceremony_role (ceremony_role),
   KEY idx_invitation_guests_name (normalized_name),
   CONSTRAINT fk_invitation_guests_invitation
@@ -127,13 +129,13 @@ VALUES
   );
 
 INSERT INTO invitation_guests
-  (code, invitation_id, full_name, normalized_name, ceremony_role, is_primary)
-SELECT 'INVITADO-TZUNUN-2026', id, 'Nombre de invitado', 'nombre de invitado', 'none', TRUE
+  (code, invitation_id, full_name, normalized_name, owner_side, ceremony_role, is_primary)
+SELECT 'INVITADO-TZUNUN-2026', id, 'Nombre de invitado', 'nombre de invitado', 'shared', 'none', TRUE
 FROM invitations
 WHERE code = 'FAMILIA-TZUNUN-2026';
 
 INSERT INTO invitation_guests
-  (code, invitation_id, full_name, normalized_name, ceremony_role, is_primary)
-SELECT 'ACOMPANANTE-TZUNUN-2026', id, 'Nombre de acompañante', 'nombre de acompanante', 'none', FALSE
+  (code, invitation_id, full_name, normalized_name, owner_side, ceremony_role, is_primary)
+SELECT 'ACOMPANANTE-TZUNUN-2026', id, 'Nombre de acompañante', 'nombre de acompanante', 'shared', 'none', FALSE
 FROM invitations
 WHERE code = 'FAMILIA-TZUNUN-2026';

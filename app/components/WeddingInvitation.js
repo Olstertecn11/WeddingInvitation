@@ -879,7 +879,7 @@ export default function WeddingInvitation({ initialCode = "" }) {
           <p className="script">Antigua Guatemala</p>
           <p className="lead-small">
             Entre muros centenarios, piedra y cielo abierto, celebraremos
-            nuestro sí rodeados de historia.
+            nuestro 'sí', rodeados de historia.
           </p>
           <div className="venue-details">
             <span>Domingo</span>
@@ -967,12 +967,12 @@ export default function WeddingInvitation({ initialCode = "" }) {
                 number: "05",
                 title: "Hospedaje y regreso",
                 text: "Si vienes desde otra ciudad, reservar en Antigua te permitirá disfrutar sin prisas. Organiza con anticipación tu transporte de regreso.",
-                note: "Evita conducir si consumes bebidas alcohólicas.",
+                note: "Evita conducir si consumes bebidas alcohólicas. Después de la boda jaja",
               },
               {
                 number: "06",
                 title: "Invitación personal",
-                text: "Confirma únicamente a las personas incluidas en este enlace y avísanos con tiempo sobre cualquier restricción alimentaria.",
+                text: `Confirma únicamente ${greetingFor(invitation)}  en este enlace y avísanos con tiempo sobre cualquier restricción alimentaria. `,
                 note: "Fecha límite: 15 de noviembre.",
               },
             ].map((item) => (
@@ -1005,6 +1005,7 @@ export default function WeddingInvitation({ initialCode = "" }) {
                   <span key={color} style={{ background: color }} />
                 ))}
               </div>
+              <p className="small-text">Colores de la boda</p>
             </article>
             <article>
               <span className="detail-number">02</span>

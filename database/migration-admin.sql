@@ -7,8 +7,10 @@ ALTER TABLE invitations
 
 ALTER TABLE invitation_guests
   ADD COLUMN code VARCHAR(64) NULL AFTER id,
-  ADD COLUMN ceremony_role ENUM('none', 'bridesmaid', 'groomsman') NOT NULL DEFAULT 'none' AFTER normalized_name,
+  ADD COLUMN owner_side ENUM('bride', 'groom', 'shared') NOT NULL DEFAULT 'shared' AFTER normalized_name,
+  ADD COLUMN ceremony_role ENUM('none', 'bridesmaid', 'groomsman') NOT NULL DEFAULT 'none' AFTER owner_side,
   ADD UNIQUE KEY uq_invitation_guests_code (code),
+  ADD KEY idx_invitation_guests_owner_side (owner_side),
   ADD KEY idx_invitation_guests_ceremony_role (ceremony_role),
   ADD COLUMN updated_at DATETIME NULL AFTER created_at,
   ADD UNIQUE KEY uq_invitation_guests_name (invitation_id, normalized_name);

@@ -4,8 +4,121 @@ import { useCallback, useEffect, useState } from "react";
 
 const emptyGuest = () => ({
   fullName: "",
+  ownerSide: "shared",
   ceremonyRole: "none",
 });
+
+const ownerSideLabel = {
+  bride: "Novia",
+  groom: "Novio",
+  shared: "Ambos",
+};
+
+const defaultStats = {
+  totalInvitations: 0,
+  totalGuests: 0,
+  brideGuests: 0,
+  groomGuests: 0,
+  sharedGuests: 0,
+  attendingGuests: 0,
+  declinedGuests: 0,
+};
+
+function toNumber(value) {
+  return Number(value || 0);
+}
+
+function StatCard({ label, value, detail, tone }) {
+  return (
+    <article className={`admin-stat-card ${tone || ""}`}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </article>
+  );
+}
+
+function AdminDashboard({ stats }) {
+  const normalizedStats = { ...defaultStats, ...stats };
+  const totalGuests = toNumber(normalizedStats.totalGuests);
+  const attendingGuests = toNumber(normalizedStats.attendingGuests);
+  const declinedGuests = toNumber(normalizedStats.declinedGuests);
+  const pendingGuests = Math.max(totalGuests - attendingGuests - declinedGuests, 0);
+  const brideGuests = toNumber(normalizedStats.brideGuests);
+  const groomGuests = toNumber(normalizedStats.groomGuests);
+  const sharedGuests = toNumber(normalizedStats.sharedGuests);
+  const confirmedPercent = totalGuests
+    ? Math.round((attendingGuests / totalGuests) * 100)
+    : 0;
+  const ownerSegments = [
+    { key: "bride", label: "Novia", value: brideGuests },
+    { key: "groom", label: "Novio", value: groomGuests },
+    { key: "shared", label: "Ambos", value: sharedGuests },
+  ];
+
+  return (
+    <section className="admin-dashboard" aria-label="Estadísticas de invitados">
+      <div className="admin-dashboard-heading">
+        <div>
+          <p className="admin-kicker">Dashboard</p>
+          <h2>Resumen de invitados</h2>
+        </div>
+        <span>{confirmedPercent}% confirmado</span>
+      </div>
+
+      <div className="admin-stat-grid">
+        <StatCard
+          label="Invitados"
+          value={totalGuests}
+          detail={`${toNumber(normalizedStats.totalInvitations)} invitaciones activas`}
+          tone="total"
+        />
+        <StatCard
+          label="Confirmados"
+          value={attendingGuests}
+          detail={`${pendingGuests} pendiente(s) · ${declinedGuests} no asistirá(n)`}
+          tone="confirmed"
+        />
+        <StatCard
+          label="Invitados novia"
+          value={brideGuests}
+          detail={totalGuests ? `${Math.round((brideGuests / totalGuests) * 100)}% del total` : "Sin datos"}
+          tone="bride"
+        />
+        <StatCard
+          label="Invitados novio"
+          value={groomGuests}
+          detail={totalGuests ? `${Math.round((groomGuests / totalGuests) * 100)}% del total` : "Sin datos"}
+          tone="groom"
+        />
+      </div>
+
+      <div className="admin-owner-panel">
+        <div className="admin-owner-track" aria-hidden="true">
+          {ownerSegments.map((segment) => (
+            <span
+              className={`admin-owner-segment ${segment.key}`}
+              key={segment.key}
+              style={{
+                width: totalGuests
+                  ? `${Math.max((segment.value / totalGuests) * 100, segment.value ? 4 : 0)}%`
+                  : "0%",
+              }}
+            />
+          ))}
+        </div>
+        <div className="admin-owner-legend">
+          {ownerSegments.map((segment) => (
+            <span key={segment.key}>
+              <i className={segment.key} />
+              {segment.label}: {segment.value}
+            </span>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
 
 function Login({ onSuccess }) {
   const [message, setMessage] = useState("");
@@ -185,6 +298,17 @@ function CreateInvitation({ onCreated }) {
                 required
               />
               <select
+                aria-label={`Pertenece a ${guest.fullName || `integrante ${index + 1}`}`}
+                value={guest.ownerSide}
+                onChange={(event) =>
+                  updateGuest(index, "ownerSide", event.target.value)
+                }
+              >
+                <option value="shared">Ambos</option>
+                <option value="bride">Novia</option>
+                <option value="groom">Novio</option>
+              </select>
+              <select
                 aria-label={`Rol ceremonial del integrante ${index + 1}`}
                 value={guest.ceremonyRole}
                 onChange={(event) =>
@@ -233,7 +357,7 @@ function CreateInvitation({ onCreated }) {
   );
 }
 
-function InvitationDirectory({ refreshKey }) {
+function InvitationDirectory({ refreshKey, onDataLoaded }) {
   const [query, setQuery] = useState("");
   const [invitations, setInvitations] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -249,8 +373,9 @@ function InvitationDirectory({ refreshKey }) {
     );
     const result = await response.json();
     setInvitations(response.ok ? result.invitations : []);
+    if (response.ok) onDataLoaded(result.stats || defaultStats);
     setLoading(false);
-  }, []);
+  }, [onDataLoaded]);
 
   useEffect(() => {
     loadInvitations("");
@@ -307,13 +432,13 @@ function InvitationDirectory({ refreshKey }) {
     }
   }
 
-  async function updateGuestRole(invitationId, guestId, ceremonyRole) {
+  async function updateGuest(invitationId, guestId, field, value) {
     setUpdatingGuestId(guestId);
     setMessage("");
     const response = await fetch("/api/admin/invitations", {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ guestId, ceremonyRole }),
+      body: JSON.stringify({ guestId, [field]: value }),
     });
     const result = await response.json();
     setUpdatingGuestId(null);
@@ -327,12 +452,13 @@ function InvitationDirectory({ refreshKey }) {
           ? {
               ...invitation,
               guests: invitation.guests.map((guest) =>
-                guest.id === guestId ? { ...guest, ceremonyRole } : guest,
+                guest.id === guestId ? { ...guest, [field]: value } : guest,
               ),
             }
           : invitation,
       ),
     );
+    if (field === "ownerSide") loadInvitations(query);
   }
 
   return (
@@ -355,7 +481,7 @@ function InvitationDirectory({ refreshKey }) {
         <input
           value={query}
           onChange={(event) => setQuery(event.target.value)}
-          placeholder="Nombre, familia o código"
+          placeholder="Nombre, familia, código, novia o novio"
         />
         <button type="submit">Buscar</button>
       </form>
@@ -396,16 +522,35 @@ function InvitationDirectory({ refreshKey }) {
                         : guest.attendanceStatus === "not_attending"
                           ? " · No asistirá"
                           : ""}
+                      {` · ${ownerSideLabel[guest.ownerSide] || "Ambos"}`}
                       {guest.contactEmail ? ` · ${guest.contactEmail}` : ""}
                     </span>
+                    <select
+                      aria-label={`Pertenece a ${guest.fullName}`}
+                      value={guest.ownerSide}
+                      disabled={updatingGuestId === guest.id}
+                      onChange={(event) =>
+                        updateGuest(
+                          invitation.id,
+                          guest.id,
+                          "ownerSide",
+                          event.target.value,
+                        )
+                      }
+                    >
+                      <option value="shared">Ambos</option>
+                      <option value="bride">Novia</option>
+                      <option value="groom">Novio</option>
+                    </select>
                     <select
                       aria-label={`Rol ceremonial de ${guest.fullName}`}
                       value={guest.ceremonyRole}
                       disabled={updatingGuestId === guest.id}
                       onChange={(event) =>
-                        updateGuestRole(
+                        updateGuest(
                           invitation.id,
                           guest.id,
+                          "ceremonyRole",
                           event.target.value,
                         )
                       }
@@ -456,6 +601,7 @@ export default function AdminPanel({ initialAuthenticated }) {
   const [authenticated, setAuthenticated] = useState(initialAuthenticated);
   const [refreshKey, setRefreshKey] = useState(0);
   const [createdMessage, setCreatedMessage] = useState("");
+  const [stats, setStats] = useState(defaultStats);
 
   if (!authenticated) {
     return <Login onSuccess={() => setAuthenticated(true)} />;
@@ -492,6 +638,8 @@ export default function AdminPanel({ initialAuthenticated }) {
         )}
       </section>
 
+      <AdminDashboard stats={stats} />
+
       <div className="admin-grid items-start">
         <CreateInvitation
           onCreated={() => {
@@ -501,7 +649,7 @@ export default function AdminPanel({ initialAuthenticated }) {
             setRefreshKey((key) => key + 1);
           }}
         />
-        <InvitationDirectory refreshKey={refreshKey} />
+        <InvitationDirectory refreshKey={refreshKey} onDataLoaded={setStats} />
       </div>
     </main>
   );

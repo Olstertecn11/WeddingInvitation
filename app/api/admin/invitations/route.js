@@ -6,6 +6,7 @@ import {
   createInvitationCode,
   normalizeCeremonyRole,
   normalizeGuests,
+  normalizeOwnerSide,
 } from "@/lib/invitations";
 
 export const runtime = "nodejs";
@@ -24,6 +25,28 @@ export async function GET(request) {
   const like = `%${query}%`;
 
   try {
+    const [[stats]] = await getPool().execute(
+      `SELECT
+         COUNT(DISTINCT i.id) AS totalInvitations,
+         COUNT(ig.id) AS totalGuests,
+         COALESCE(SUM(ig.owner_side = 'bride'), 0) AS brideGuests,
+         COALESCE(SUM(ig.owner_side = 'groom'), 0) AS groomGuests,
+         COALESCE(SUM(ig.owner_side = 'shared'), 0) AS sharedGuests,
+         COALESCE(SUM(responses.is_attending), 0) AS attendingGuests,
+         COALESCE(SUM(responses.is_declined), 0) AS declinedGuests
+       FROM invitations i
+       LEFT JOIN invitation_guests ig ON ig.invitation_id = i.id
+       LEFT JOIN (
+         SELECT
+           invitation_guest_id,
+           MAX(attendance_status = 'attending') AS is_attending,
+           MAX(attendance_status = 'not_attending') AS is_declined
+         FROM rsvp_guest_responses
+         GROUP BY invitation_guest_id
+       ) responses ON responses.invitation_guest_id = ig.id
+       WHERE i.status = 'active'`,
+    );
+
     const [invitations] = await getPool().execute(
       `SELECT i.id, i.code, i.display_name, i.invitation_type,
               i.status, i.max_guests, i.personalized_message,
@@ -32,21 +55,30 @@ export async function GET(request) {
        WHERE (? = '' OR i.display_name LIKE ? OR i.code LIKE ?
               OR EXISTS (
                 SELECT 1 FROM invitation_guests ig
-                WHERE ig.invitation_id = i.id AND ig.full_name LIKE ?
+                WHERE ig.invitation_id = i.id
+                  AND (
+                    ig.full_name LIKE ?
+                    OR ig.owner_side = CASE
+                      WHEN LOWER(?) IN ('novia', 'bride') THEN 'bride'
+                      WHEN LOWER(?) IN ('novio', 'groom') THEN 'groom'
+                      WHEN LOWER(?) IN ('ambos', 'shared') THEN 'shared'
+                      ELSE ''
+                    END
+                  )
               ))
        ORDER BY i.created_at DESC
        LIMIT 100`,
-      [query, like, like, like],
+      [query, like, like, like, query, query, query],
     );
 
     if (!invitations.length) {
-      return NextResponse.json({ invitations: [] });
+      return NextResponse.json({ invitations: [], stats });
     }
 
     const ids = invitations.map((invitation) => invitation.id);
     const placeholders = ids.map(() => "?").join(",");
     const [guests] = await getPool().execute(
-      `SELECT id, code, invitation_id, full_name, ceremony_role, is_primary
+      `SELECT id, code, invitation_id, full_name, owner_side, ceremony_role, is_primary
        FROM invitation_guests
        WHERE invitation_id IN (${placeholders})
        ORDER BY invitation_id, is_primary DESC, id`,
@@ -97,6 +129,7 @@ export async function GET(request) {
             id: guest.id,
             code: guest.code,
             fullName: guest.full_name,
+            ownerSide: guest.owner_side,
             ceremonyRole: guest.ceremony_role,
             isPrimary: Boolean(guest.is_primary),
             contactName: guestRsvp?.contact_name || null,
@@ -111,7 +144,7 @@ export async function GET(request) {
         }),
     }));
 
-    return NextResponse.json({ invitations: invitationsWithGuests });
+    return NextResponse.json({ invitations: invitationsWithGuests, stats });
   } catch (error) {
     console.error("Admin invitation search failed:", error);
     return NextResponse.json(
@@ -205,14 +238,15 @@ export async function POST(request) {
         try {
           await connection.execute(
             `INSERT INTO invitation_guests
-             (code, invitation_id, full_name, normalized_name, ceremony_role,
+             (code, invitation_id, full_name, normalized_name, owner_side, ceremony_role,
               is_primary)
-             VALUES (?, ?, ?, ?, ?, ?)`,
+             VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
               createInvitationCode(),
               invitationId,
               guest.fullName,
               guest.normalizedName,
+              guest.ownerSide,
               guest.ceremonyRole,
               guest.isPrimary ? 1 : 0,
             ],
@@ -304,7 +338,18 @@ export async function PATCH(request) {
   }
 
   const guestId = Number(payload.guestId);
-  const ceremonyRole = normalizeCeremonyRole(payload.ceremonyRole);
+  const updates = [];
+  const values = [];
+
+  if (Object.hasOwn(payload, "ceremonyRole")) {
+    updates.push("ceremony_role = ?");
+    values.push(normalizeCeremonyRole(payload.ceremonyRole));
+  }
+
+  if (Object.hasOwn(payload, "ownerSide")) {
+    updates.push("owner_side = ?");
+    values.push(normalizeOwnerSide(payload.ownerSide));
+  }
 
   if (!Number.isInteger(guestId) || guestId < 1) {
     return NextResponse.json(
@@ -313,12 +358,19 @@ export async function PATCH(request) {
     );
   }
 
+  if (!updates.length) {
+    return NextResponse.json(
+      { message: "No hay cambios para actualizar." },
+      { status: 400 },
+    );
+  }
+
   try {
     const [result] = await getPool().execute(
       `UPDATE invitation_guests
-       SET ceremony_role = ?, updated_at = NOW()
+       SET ${updates.join(", ")}, updated_at = NOW()
        WHERE id = ?`,
-      [ceremonyRole, guestId],
+      [...values, guestId],
     );
 
     if (!result.affectedRows) {
@@ -329,8 +381,16 @@ export async function PATCH(request) {
     }
 
     return NextResponse.json({
-      message: "Rol actualizado correctamente.",
-      guest: { id: guestId, ceremonyRole },
+      message: "Invitado actualizado correctamente.",
+      guest: {
+        id: guestId,
+        ceremonyRole: Object.hasOwn(payload, "ceremonyRole")
+          ? normalizeCeremonyRole(payload.ceremonyRole)
+          : undefined,
+        ownerSide: Object.hasOwn(payload, "ownerSide")
+          ? normalizeOwnerSide(payload.ownerSide)
+          : undefined,
+      },
     });
   } catch (error) {
     console.error("Admin guest update failed:", error);

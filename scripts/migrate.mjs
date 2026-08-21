@@ -177,6 +177,7 @@ try {
         invitation_id BIGINT UNSIGNED NOT NULL,
         full_name VARCHAR(160) NOT NULL,
         normalized_name VARCHAR(160) NOT NULL,
+        owner_side ENUM('bride', 'groom', 'shared') NOT NULL DEFAULT 'shared',
         ceremony_role ENUM('none', 'bridesmaid', 'groomsman') NOT NULL DEFAULT 'none',
         is_primary BOOLEAN NOT NULL DEFAULT FALSE,
         created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -185,6 +186,7 @@ try {
         UNIQUE KEY uq_invitation_guests_code (code),
         UNIQUE KEY uq_invitation_guests_name (invitation_id, normalized_name),
         KEY idx_invitation_guests_invitation (invitation_id),
+        KEY idx_invitation_guests_owner_side (owner_side),
         KEY idx_invitation_guests_ceremony_role (ceremony_role),
         KEY idx_invitation_guests_name (normalized_name),
         CONSTRAINT fk_invitation_guests_invitation
@@ -202,8 +204,18 @@ try {
   );
   await addColumn(
     "invitation_guests",
+    "owner_side",
+    "owner_side ENUM('bride', 'groom', 'shared') NOT NULL DEFAULT 'shared' AFTER normalized_name",
+  );
+  if (!(await indexExists("invitation_guests", "idx_invitation_guests_owner_side"))) {
+    await connection.query(
+      "ALTER TABLE invitation_guests ADD KEY idx_invitation_guests_owner_side (owner_side)",
+    );
+  }
+  await addColumn(
+    "invitation_guests",
     "ceremony_role",
-    "ceremony_role ENUM('none', 'bridesmaid', 'groomsman') NOT NULL DEFAULT 'none' AFTER normalized_name",
+    "ceremony_role ENUM('none', 'bridesmaid', 'groomsman') NOT NULL DEFAULT 'none' AFTER owner_side",
   );
   if (await columnExists("invitation_guests", "gender")) {
     await connection.query(
@@ -251,8 +263,8 @@ try {
   for (const invitation of missingGuests) {
     await connection.execute(
       `INSERT INTO invitation_guests
-       (code, invitation_id, full_name, normalized_name, ceremony_role, is_primary)
-       VALUES (?, ?, ?, LOWER(?), 'none', 1)`,
+       (code, invitation_id, full_name, normalized_name, owner_side, ceremony_role, is_primary)
+       VALUES (?, ?, ?, LOWER(?), 'shared', 'none', 1)`,
       [
         createGuestCode(),
         invitation.id,
