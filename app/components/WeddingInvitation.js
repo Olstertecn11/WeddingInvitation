@@ -973,7 +973,7 @@ export default function WeddingInvitation({ initialCode = "" }) {
                 number: "06",
                 title: "Invitación personal",
                 text: `Confirma únicamente ${greetingFor(invitation)}  en este enlace y avísanos con tiempo sobre cualquier restricción alimentaria. `,
-                note: "Fecha límite: 15 de noviembre.",
+                note: "Fecha límite: 1 de noviembre.",
               },
             ].map((item) => (
               <article className="guest-guide-card" key={item.number}>
@@ -1012,8 +1012,9 @@ export default function WeddingInvitation({ initialCode = "" }) {
               <h3>Regalos</h3>
               <p className="script">Lluvia de sobres</p>
               <p>
-                Tu presencia es nuestro mejor regalo. Si deseas tener un detalle
-                con nosotros, agradeceremos un obsequio en efectivo.
+                Tu presencia es nuestro mejor regalo. Sin embargo, si deseas
+                realizarnos un obsequio, agradeceremos que sea en efectivo o
+                mediante un depósito el día del evento.
               </p>
             </article>
             <article>
