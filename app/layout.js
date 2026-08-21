@@ -4,7 +4,7 @@ const siteUrl = "https://www.oliveranalucia.love";
 const title = "Oliver & Analucía | Nuestra boda";
 const description =
   "Acompáñanos a celebrar nuestra boda el 13 de diciembre de 2026 en Antigua Guatemala.";
-const previewImage = "/images/link-preview.jpg";
+const previewImage = "/images/link-preview.png";
 
 export const metadata = {
   metadataBase: new URL(siteUrl),
