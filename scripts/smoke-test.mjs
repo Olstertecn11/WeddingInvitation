@@ -38,6 +38,7 @@ try {
     body: JSON.stringify({
       invitationType: "family",
       displayName: testName,
+      peopleCount: 2,
       personalizedMessage: "Nos hará mucha ilusión celebrar con ustedes.",
       guests: [
         { fullName: "María Prueba", ceremonyRole: "bridesmaid" },
@@ -57,8 +58,29 @@ try {
   assert(search.ok, `Search failed with ${search.status}`);
   assert(searchBody.invitations.length === 1, "Created invitation was not found");
   assert(
+    Number(searchBody.invitations[0].people_count) === 2,
+    "Invitation people count was not returned",
+  );
+  assert(
     searchBody.invitations[0].guests.every((guest) => guest.code),
     "Guest invitation links were not returned",
+  );
+  const updatedPeopleCount = await fetch(`${baseUrl}/api/admin/invitations`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+      Cookie: cookie,
+    },
+    body: JSON.stringify({
+      invitationId: searchBody.invitations[0].id,
+      peopleCount: 3,
+    }),
+  });
+  const updatedPeopleCountBody = await updatedPeopleCount.json();
+  assert(
+    updatedPeopleCount.ok,
+    updatedPeopleCountBody.message ||
+      `People count update failed with ${updatedPeopleCount.status}`,
   );
   const guestLinkCode = searchBody.invitations[0].guests[0].code;
   const secondGuestLinkCode = searchBody.invitations[0].guests[1].code;
@@ -172,6 +194,7 @@ try {
     JSON.stringify({
       adminLogin: "ok",
       invitationCreation: "ok",
+      peopleCountUpdate: "ok",
       search: "ok",
       publicLookup: "ok",
       rsvp: "ok",

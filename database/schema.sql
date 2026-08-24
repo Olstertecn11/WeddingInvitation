@@ -5,6 +5,7 @@ CREATE TABLE invitations (
   invitation_type ENUM('individual', 'couple', 'family') NOT NULL DEFAULT 'individual',
   status ENUM('active', 'disabled', 'expired') NOT NULL DEFAULT 'active',
   max_guests TINYINT UNSIGNED NOT NULL DEFAULT 1,
+  people_count TINYINT UNSIGNED NOT NULL DEFAULT 1,
   personalized_message VARCHAR(500) NULL,
   first_opened_at DATETIME NULL,
   last_opened_at DATETIME NULL,
@@ -117,7 +118,7 @@ CREATE TABLE admin_sessions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO invitations
-  (code, display_name, invitation_type, status, max_guests, personalized_message)
+  (code, display_name, invitation_type, status, max_guests, people_count, personalized_message)
 VALUES
   (
     'FAMILIA-TZUNUN-2026',
@@ -125,6 +126,7 @@ VALUES
     'family',
     'active',
     2,
+    1,
     'Nos hará mucha ilusión celebrar con ustedes.'
   );
 

@@ -1,5 +1,6 @@
 ALTER TABLE invitations
   ADD COLUMN status ENUM('active', 'disabled', 'expired') NOT NULL DEFAULT 'active' AFTER invitation_type,
+  ADD COLUMN people_count TINYINT UNSIGNED NOT NULL DEFAULT 1 AFTER max_guests,
   ADD COLUMN first_opened_at DATETIME NULL AFTER personalized_message,
   ADD COLUMN last_opened_at DATETIME NULL AFTER first_opened_at,
   MODIFY invitation_type ENUM('individual', 'couple', 'family') NOT NULL DEFAULT 'individual',

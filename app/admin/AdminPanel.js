@@ -24,21 +24,27 @@ const defaultStats = {
   declinedGuests: 0,
 };
 
+const attendanceLabel = {
+  attending: "Asistirá",
+  not_attending: "No asistirá",
+  pending: "Pendiente",
+};
+
 function toNumber(value) {
   return Number(value || 0);
 }
 
-function StatCard({ label, value, detail, tone }) {
+function StatCard({ label, value, detail, tone, onClick }) {
   return (
-    <article className={`admin-stat-card ${tone || ""}`}>
+    <button type="button" className={`admin-stat-card ${tone || ""}`} onClick={onClick}>
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{detail}</small>
-    </article>
+    </button>
   );
 }
 
-function AdminDashboard({ stats }) {
+function AdminDashboard({ stats, onOpenResponses }) {
   const normalizedStats = { ...defaultStats, ...stats };
   const totalGuests = toNumber(normalizedStats.totalGuests);
   const attendingGuests = toNumber(normalizedStats.attendingGuests);
@@ -72,24 +78,28 @@ function AdminDashboard({ stats }) {
           value={totalGuests}
           detail={`${toNumber(normalizedStats.totalInvitations)} invitaciones activas`}
           tone="total"
+          onClick={() => onOpenResponses("all")}
         />
         <StatCard
           label="Confirmados"
           value={attendingGuests}
           detail={`${pendingGuests} pendiente(s) · ${declinedGuests} no asistirá(n)`}
           tone="confirmed"
+          onClick={() => onOpenResponses("attending")}
         />
         <StatCard
           label="Invitados novia"
           value={brideGuests}
           detail={totalGuests ? `${Math.round((brideGuests / totalGuests) * 100)}% del total` : "Sin datos"}
           tone="bride"
+          onClick={() => onOpenResponses("bride")}
         />
         <StatCard
           label="Invitados novio"
           value={groomGuests}
           detail={totalGuests ? `${Math.round((groomGuests / totalGuests) * 100)}% del total` : "Sin datos"}
           tone="groom"
+          onClick={() => onOpenResponses("groom")}
         />
       </div>
 
@@ -115,6 +125,128 @@ function AdminDashboard({ stats }) {
             </span>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+function AdminResponsesPage({ initialFilter, onBack }) {
+  const [filter, setFilter] = useState(initialFilter || "attending");
+  const [invitations, setInvitations] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setFilter(initialFilter || "attending");
+  }, [initialFilter]);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadResponses() {
+      setLoading(true);
+      const response = await fetch("/api/admin/invitations");
+      const result = await response.json();
+      if (active) {
+        setInvitations(response.ok ? result.invitations : []);
+        setLoading(false);
+      }
+    }
+
+    loadResponses();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const rows = invitations.flatMap((invitation) => {
+    const guestsById = new Map(
+      invitation.guests.map((guest) => [Number(guest.id), guest]),
+    );
+
+    return (invitation.responses || []).flatMap((response) => {
+      const responseGuests = response.guestResponses?.length
+        ? response.guestResponses
+        : [{ invitationGuestId: response.invitationGuestId, attendanceStatus: "pending" }];
+
+      return responseGuests.map((guestResponse) => {
+        const guest = guestsById.get(Number(guestResponse.invitationGuestId));
+        return {
+          id: `${response.id}-${guestResponse.invitationGuestId || "group"}`,
+          invitation,
+          response,
+          guest,
+          attendanceStatus: guestResponse.attendanceStatus || "pending",
+        };
+      });
+    });
+  });
+
+  const filteredRows = rows.filter((row) => {
+    if (filter === "attending") return row.attendanceStatus === "attending";
+    if (filter === "not_attending") return row.attendanceStatus === "not_attending";
+    if (filter === "bride") return row.guest?.ownerSide === "bride";
+    if (filter === "groom") return row.guest?.ownerSide === "groom";
+    return true;
+  });
+
+  return (
+    <section className="admin-responses-page">
+      <div className="admin-section-heading">
+        <div>
+          <p className="admin-kicker">Confirmaciones</p>
+          <h2>Respuestas y mensajes</h2>
+        </div>
+        <button type="button" className="admin-back-button" onClick={onBack}>
+          Volver
+        </button>
+      </div>
+
+      <div className="admin-response-filters">
+        {[
+          ["attending", "Confirmados"],
+          ["not_attending", "No asistirán"],
+          ["bride", "Novia"],
+          ["groom", "Novio"],
+          ["all", "Todos"],
+        ].map(([value, label]) => (
+          <button
+            type="button"
+            key={value}
+            className={filter === value ? "active" : ""}
+            onClick={() => setFilter(value)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {loading && <p className="admin-empty">Consultando respuestas...</p>}
+      {!loading && !filteredRows.length && (
+        <p className="admin-empty">Todavía no hay respuestas para esta vista.</p>
+      )}
+
+      <div className="admin-response-list">
+        {filteredRows.map(({ id, invitation, response, guest, attendanceStatus }) => (
+          <article className="admin-response-card" key={id}>
+            <div>
+              <span className={`admin-status ${attendanceStatus === "attending" ? "answered" : "pending"}`}>
+                {attendanceLabel[attendanceStatus] || "Pendiente"}
+              </span>
+              <h3>{guest?.fullName || invitation.display_name}</h3>
+              <p>
+                {invitation.display_name} · {invitation.people_count || 1} persona(s)
+              </p>
+            </div>
+            <div className="admin-response-contact">
+              <strong>{response.contactName}</strong>
+              <span>{response.contactEmail}</span>
+              {response.contactPhone && <span>{response.contactPhone}</span>}
+            </div>
+            <blockquote>
+              {response.guestMessage || "Sin mensaje de deseo registrado."}
+            </blockquote>
+          </article>
+        ))}
       </div>
     </section>
   );
@@ -187,6 +319,7 @@ function Login({ onSuccess }) {
 
 function CreateInvitation({ onCreated }) {
   const [invitationType, setInvitationType] = useState("individual");
+  const [peopleCount, setPeopleCount] = useState(1);
   const [guests, setGuests] = useState([emptyGuest()]);
   const [status, setStatus] = useState("idle");
   const [message, setMessage] = useState("");
@@ -216,6 +349,7 @@ function CreateInvitation({ onCreated }) {
       body: JSON.stringify({
         invitationType,
         displayName: form.get("displayName"),
+        peopleCount,
         personalizedMessage: form.get("personalizedMessage"),
         guests,
       }),
@@ -227,6 +361,7 @@ function CreateInvitation({ onCreated }) {
       formElement.reset();
       setGuests([emptyGuest()]);
       setInvitationType("individual");
+      setPeopleCount(1);
       onCreated();
     }
   }
@@ -268,6 +403,19 @@ function CreateInvitation({ onCreated }) {
                 ? "Familia Méndez"
                 : "María Fernanda López"
             }
+            required
+          />
+        </label>
+
+        <label>
+          Personas por invitación
+          <input
+            min="1"
+            max="20"
+            name="peopleCount"
+            type="number"
+            value={peopleCount}
+            onChange={(event) => setPeopleCount(event.target.value)}
             required
           />
         </label>
@@ -364,6 +512,7 @@ function InvitationDirectory({ refreshKey, onDataLoaded }) {
   const [copied, setCopied] = useState("");
   const [deletingId, setDeletingId] = useState(null);
   const [updatingGuestId, setUpdatingGuestId] = useState(null);
+  const [updatingInvitationId, setUpdatingInvitationId] = useState(null);
   const [message, setMessage] = useState("");
 
   const loadInvitations = useCallback(async (search = "") => {
@@ -430,6 +579,36 @@ function InvitationDirectory({ refreshKey, onDataLoaded }) {
         current.filter((item) => item.id !== invitation.id),
       );
     }
+  }
+
+  async function updateInvitationPeopleCount(invitationId, value) {
+    const peopleCount = Number(value);
+    if (!Number.isInteger(peopleCount) || peopleCount < 1 || peopleCount > 20) {
+      setMessage("La cantidad debe estar entre 1 y 20 personas.");
+      return;
+    }
+
+    setUpdatingInvitationId(invitationId);
+    setMessage("");
+    const response = await fetch("/api/admin/invitations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invitationId, peopleCount }),
+    });
+    const result = await response.json();
+    setUpdatingInvitationId(null);
+    setMessage(result.message);
+
+    if (!response.ok) return;
+
+    setInvitations((current) =>
+      current.map((invitation) =>
+        invitation.id === invitationId
+          ? { ...invitation, people_count: peopleCount }
+          : invitation,
+      ),
+    );
+    loadInvitations(query);
   }
 
   async function updateGuest(invitationId, guestId, field, value) {
@@ -510,8 +689,22 @@ function InvitationDirectory({ refreshKey, onDataLoaded }) {
                     ? "Pareja"
                     : "Individual"}{" "}
                 · {invitation.guests.length} persona(s)
+                · {invitation.people_count || 1} en estadística
                 {invitation.status !== "active" ? ` · ${invitation.status}` : ""}
               </p>
+              <label className="admin-people-count">
+                Personas por invitación
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  defaultValue={invitation.people_count || 1}
+                  disabled={updatingInvitationId === invitation.id}
+                  onBlur={(event) =>
+                    updateInvitationPeopleCount(invitation.id, event.target.value)
+                  }
+                />
+              </label>
               <div className="admin-member-chips">
                 {invitation.guests.map((guest) => (
                   <div className="admin-member-chip" key={guest.id}>
@@ -602,6 +795,7 @@ export default function AdminPanel({ initialAuthenticated }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [createdMessage, setCreatedMessage] = useState("");
   const [stats, setStats] = useState(defaultStats);
+  const [responsesFilter, setResponsesFilter] = useState(null);
 
   if (!authenticated) {
     return <Login onSuccess={() => setAuthenticated(true)} />;
@@ -638,19 +832,26 @@ export default function AdminPanel({ initialAuthenticated }) {
         )}
       </section>
 
-      <AdminDashboard stats={stats} />
+      <AdminDashboard stats={stats} onOpenResponses={setResponsesFilter} />
 
-      <div className="admin-grid items-start">
-        <CreateInvitation
-          onCreated={() => {
-            setCreatedMessage(
-              "Invitación creada. Copia los links personales desde el directorio.",
-            );
-            setRefreshKey((key) => key + 1);
-          }}
+      {responsesFilter ? (
+        <AdminResponsesPage
+          initialFilter={responsesFilter}
+          onBack={() => setResponsesFilter(null)}
         />
-        <InvitationDirectory refreshKey={refreshKey} onDataLoaded={setStats} />
-      </div>
+      ) : (
+        <div className="admin-grid items-start">
+          <CreateInvitation
+            onCreated={() => {
+              setCreatedMessage(
+                "Invitación creada. Copia los links personales desde el directorio.",
+              );
+              setRefreshKey((key) => key + 1);
+            }}
+          />
+          <InvitationDirectory refreshKey={refreshKey} onDataLoaded={setStats} />
+        </div>
+      )}
     </main>
   );
 }

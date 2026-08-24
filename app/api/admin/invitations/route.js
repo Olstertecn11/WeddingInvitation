@@ -7,6 +7,7 @@ import {
   normalizeCeremonyRole,
   normalizeGuests,
   normalizeOwnerSide,
+  normalizePeopleCount,
 } from "@/lib/invitations";
 
 export const runtime = "nodejs";
@@ -28,28 +29,39 @@ export async function GET(request) {
     const [[stats]] = await getPool().execute(
       `SELECT
          COUNT(DISTINCT i.id) AS totalInvitations,
-         COUNT(ig.id) AS totalGuests,
-         COALESCE(SUM(ig.owner_side = 'bride'), 0) AS brideGuests,
-         COALESCE(SUM(ig.owner_side = 'groom'), 0) AS groomGuests,
-         COALESCE(SUM(ig.owner_side = 'shared'), 0) AS sharedGuests,
-         COALESCE(SUM(responses.is_attending), 0) AS attendingGuests,
-         COALESCE(SUM(responses.is_declined), 0) AS declinedGuests
+         COALESCE(SUM(i.people_count), 0) AS totalGuests,
+         COALESCE(SUM(CASE WHEN primary_guests.owner_side = 'bride' THEN i.people_count ELSE 0 END), 0) AS brideGuests,
+         COALESCE(SUM(CASE WHEN primary_guests.owner_side = 'groom' THEN i.people_count ELSE 0 END), 0) AS groomGuests,
+         COALESCE(SUM(CASE WHEN primary_guests.owner_side = 'shared' OR primary_guests.owner_side IS NULL THEN i.people_count ELSE 0 END), 0) AS sharedGuests,
+         COALESCE(SUM(CASE WHEN responses.has_attending = 1 THEN i.people_count ELSE 0 END), 0) AS attendingGuests,
+         COALESCE(SUM(CASE WHEN responses.has_attending = 0 AND responses.has_declined = 1 THEN i.people_count ELSE 0 END), 0) AS declinedGuests
        FROM invitations i
-       LEFT JOIN invitation_guests ig ON ig.invitation_id = i.id
        LEFT JOIN (
          SELECT
-           invitation_guest_id,
-           MAX(attendance_status = 'attending') AS is_attending,
-           MAX(attendance_status = 'not_attending') AS is_declined
-         FROM rsvp_guest_responses
-         GROUP BY invitation_guest_id
-       ) responses ON responses.invitation_guest_id = ig.id
+           ig.invitation_id,
+           SUBSTRING_INDEX(
+             GROUP_CONCAT(ig.owner_side ORDER BY ig.is_primary DESC, ig.id),
+             ',',
+             1
+           ) AS owner_side
+         FROM invitation_guests ig
+         GROUP BY ig.invitation_id
+       ) primary_guests ON primary_guests.invitation_id = i.id
+       LEFT JOIN (
+         SELECT
+           r.invitation_id,
+           MAX(rgr.attendance_status = 'attending') AS has_attending,
+           MAX(rgr.attendance_status = 'not_attending') AS has_declined
+         FROM rsvp_guest_responses rgr
+         INNER JOIN rsvps r ON r.id = rgr.rsvp_id
+         GROUP BY r.invitation_id
+       ) responses ON responses.invitation_id = i.id
        WHERE i.status = 'active'`,
     );
 
     const [invitations] = await getPool().execute(
       `SELECT i.id, i.code, i.display_name, i.invitation_type,
-              i.status, i.max_guests, i.personalized_message,
+              i.status, i.max_guests, i.people_count, i.personalized_message,
               i.first_opened_at, i.last_opened_at, i.created_at
        FROM invitations i
        WHERE (? = '' OR i.display_name LIKE ? OR i.code LIKE ?
@@ -87,7 +99,8 @@ export async function GET(request) {
 
     const [rsvps] = await getPool().execute(
       `SELECT id, invitation_id, invitation_guest_id, contact_name,
-              contact_email, contact_phone, submitted_at
+              contact_email, contact_phone, dietary_notes, guest_message,
+              submitted_at
        FROM rsvps
        WHERE invitation_id IN (${placeholders})
        ORDER BY submitted_at DESC, id DESC`,
@@ -111,6 +124,24 @@ export async function GET(request) {
       ...invitation,
       rsvpCount: rsvps.filter((rsvp) => rsvp.invitation_id === invitation.id)
         .length,
+      responses: rsvps
+        .filter((rsvp) => rsvp.invitation_id === invitation.id)
+        .map((rsvp) => ({
+          id: rsvp.id,
+          invitationGuestId: rsvp.invitation_guest_id,
+          contactName: rsvp.contact_name,
+          contactEmail: rsvp.contact_email,
+          contactPhone: rsvp.contact_phone,
+          dietaryNotes: rsvp.dietary_notes,
+          guestMessage: rsvp.guest_message,
+          submittedAt: rsvp.submitted_at,
+          guestResponses: responses
+            .filter((response) => response.rsvp_id === rsvp.id)
+            .map((response) => ({
+              invitationGuestId: response.invitation_guest_id,
+              attendanceStatus: response.attendance_status,
+            })),
+        })),
       guests: guests
         .filter((guest) => guest.invitation_id === invitation.id)
         .map((guest) => {
@@ -134,6 +165,7 @@ export async function GET(request) {
             isPrimary: Boolean(guest.is_primary),
             contactName: guestRsvp?.contact_name || null,
             contactEmail: guestRsvp?.contact_email || null,
+            guestMessage: guestRsvp?.guest_message || null,
             attendanceStatus:
               responses.find(
                 (response) =>
@@ -174,6 +206,7 @@ export async function POST(request) {
     : "individual";
   const displayName = cleanText(payload.displayName, 160);
   const personalizedMessage = cleanText(payload.personalizedMessage, 500);
+  const peopleCount = normalizePeopleCount(payload.peopleCount);
   const guests = normalizeGuests(payload.guests);
 
   if (!displayName || !guests.length) {
@@ -216,13 +249,14 @@ export async function POST(request) {
         const [result] = await connection.execute(
           `INSERT INTO invitations
            (code, display_name, invitation_type, status, max_guests,
-            personalized_message)
-           VALUES (?, ?, ?, 'active', ?, ?)`,
+            people_count, personalized_message)
+           VALUES (?, ?, ?, 'active', ?, ?, ?)`,
           [
             code,
             displayName,
             invitationType,
             guests.length,
+            peopleCount,
             personalizedMessage || null,
           ],
         );
@@ -338,8 +372,47 @@ export async function PATCH(request) {
   }
 
   const guestId = Number(payload.guestId);
+  const invitationId = Number(payload.invitationId);
   const updates = [];
   const values = [];
+
+  if (Object.hasOwn(payload, "peopleCount")) {
+    const peopleCount = normalizePeopleCount(payload.peopleCount);
+
+    if (!Number.isInteger(invitationId) || invitationId < 1) {
+      return NextResponse.json(
+        { message: "La invitación indicada no es válida." },
+        { status: 400 },
+      );
+    }
+
+    try {
+      const [result] = await getPool().execute(
+        `UPDATE invitations
+         SET people_count = ?, updated_at = NOW()
+         WHERE id = ?`,
+        [peopleCount, invitationId],
+      );
+
+      if (!result.affectedRows) {
+        return NextResponse.json(
+          { message: "La invitación ya no existe." },
+          { status: 404 },
+        );
+      }
+
+      return NextResponse.json({
+        message: "Cantidad de personas actualizada correctamente.",
+        invitation: { id: invitationId, peopleCount },
+      });
+    } catch (error) {
+      console.error("Admin invitation update failed:", error);
+      return NextResponse.json(
+        { message: "No pudimos actualizar la invitación." },
+        { status: 500 },
+      );
+    }
+  }
 
   if (Object.hasOwn(payload, "ceremonyRole")) {
     updates.push("ceremony_role = ?");

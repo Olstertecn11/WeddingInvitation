@@ -94,6 +94,7 @@ try {
         invitation_type ENUM('individual', 'couple', 'family') NOT NULL DEFAULT 'individual',
         status ENUM('active', 'disabled', 'expired') NOT NULL DEFAULT 'active',
         max_guests TINYINT UNSIGNED NOT NULL DEFAULT 1,
+        people_count TINYINT UNSIGNED NOT NULL DEFAULT 1,
         personalized_message VARCHAR(500) NULL,
         first_opened_at DATETIME NULL,
         last_opened_at DATETIME NULL,
@@ -123,8 +124,16 @@ try {
   );
   await addColumn(
     "invitations",
+    "people_count",
+    "people_count TINYINT UNSIGNED NOT NULL DEFAULT 1 AFTER max_guests",
+  );
+  await connection.query(
+    "UPDATE invitations SET people_count = 1 WHERE people_count IS NULL OR people_count < 1",
+  );
+  await addColumn(
+    "invitations",
     "personalized_message",
-    "personalized_message VARCHAR(500) NULL AFTER max_guests",
+    "personalized_message VARCHAR(500) NULL AFTER people_count",
   );
   await addColumn(
     "invitations",
