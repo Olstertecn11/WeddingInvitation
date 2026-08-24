@@ -19,6 +19,71 @@ function unauthorized() {
   );
 }
 
+function distributeGuestWeights(invitation, guests) {
+  if (!guests.length) return new Map();
+
+  const peopleCount = normalizePeopleCount(invitation.people_count);
+  const baseWeight = Math.floor(peopleCount / guests.length);
+  const extraPeople = peopleCount % guests.length;
+  const weights = new Map();
+
+  guests
+    .slice()
+    .sort((a, b) => Number(b.is_primary) - Number(a.is_primary) || a.id - b.id)
+    .forEach((guest, index) => {
+      weights.set(guest.id, baseWeight + (index < extraPeople ? 1 : 0));
+    });
+
+  return weights;
+}
+
+function calculateStats(invitations, guests, responses) {
+  const activeInvitations = invitations.filter(
+    (invitation) => invitation.status === "active",
+  );
+  const stats = { totalInvitations: activeInvitations.length };
+
+  for (const key of [
+    "totalGuests",
+    "brideGuests",
+    "groomGuests",
+    "sharedGuests",
+    "attendingGuests",
+    "declinedGuests",
+  ]) {
+    stats[key] = 0;
+  }
+
+  const responsesByGuestId = new Map(
+    responses.map((response) => [
+      Number(response.invitation_guest_id),
+      response.attendance_status,
+    ]),
+  );
+
+  for (const invitation of activeInvitations) {
+    const invitationGuests = guests.filter(
+      (guest) => guest.invitation_id === invitation.id,
+    );
+    const guestWeights = distributeGuestWeights(invitation, invitationGuests);
+
+    stats.totalGuests += normalizePeopleCount(invitation.people_count);
+
+    for (const guest of invitationGuests) {
+      const weight = guestWeights.get(guest.id) || 0;
+      if (guest.owner_side === "bride") stats.brideGuests += weight;
+      else if (guest.owner_side === "groom") stats.groomGuests += weight;
+      else stats.sharedGuests += weight;
+
+      const attendanceStatus = responsesByGuestId.get(Number(guest.id));
+      if (attendanceStatus === "attending") stats.attendingGuests += weight;
+      if (attendanceStatus === "not_attending") stats.declinedGuests += weight;
+    }
+  }
+
+  return stats;
+}
+
 export async function GET(request) {
   if (!(await requestIsAdmin(request))) return unauthorized();
 
@@ -26,39 +91,6 @@ export async function GET(request) {
   const like = `%${query}%`;
 
   try {
-    const [[stats]] = await getPool().execute(
-      `SELECT
-         COUNT(DISTINCT i.id) AS totalInvitations,
-         COALESCE(SUM(i.people_count), 0) AS totalGuests,
-         COALESCE(SUM(CASE WHEN primary_guests.owner_side = 'bride' THEN i.people_count ELSE 0 END), 0) AS brideGuests,
-         COALESCE(SUM(CASE WHEN primary_guests.owner_side = 'groom' THEN i.people_count ELSE 0 END), 0) AS groomGuests,
-         COALESCE(SUM(CASE WHEN primary_guests.owner_side = 'shared' OR primary_guests.owner_side IS NULL THEN i.people_count ELSE 0 END), 0) AS sharedGuests,
-         COALESCE(SUM(CASE WHEN responses.has_attending = 1 THEN i.people_count ELSE 0 END), 0) AS attendingGuests,
-         COALESCE(SUM(CASE WHEN responses.has_attending = 0 AND responses.has_declined = 1 THEN i.people_count ELSE 0 END), 0) AS declinedGuests
-       FROM invitations i
-       LEFT JOIN (
-         SELECT
-           ig.invitation_id,
-           SUBSTRING_INDEX(
-             GROUP_CONCAT(ig.owner_side ORDER BY ig.is_primary DESC, ig.id),
-             ',',
-             1
-           ) AS owner_side
-         FROM invitation_guests ig
-         GROUP BY ig.invitation_id
-       ) primary_guests ON primary_guests.invitation_id = i.id
-       LEFT JOIN (
-         SELECT
-           r.invitation_id,
-           MAX(rgr.attendance_status = 'attending') AS has_attending,
-           MAX(rgr.attendance_status = 'not_attending') AS has_declined
-         FROM rsvp_guest_responses rgr
-         INNER JOIN rsvps r ON r.id = rgr.rsvp_id
-         GROUP BY r.invitation_id
-       ) responses ON responses.invitation_id = i.id
-       WHERE i.status = 'active'`,
-    );
-
     const [invitations] = await getPool().execute(
       `SELECT i.id, i.code, i.display_name, i.invitation_type,
               i.status, i.max_guests, i.people_count, i.personalized_message,
@@ -78,10 +110,36 @@ export async function GET(request) {
                     END
                   )
               ))
-       ORDER BY i.created_at DESC
-       LIMIT 100`,
+      ORDER BY i.created_at DESC
+      LIMIT 100`,
       [query, like, like, like, query, query, query],
     );
+
+    const [statsInvitations] = await getPool().execute(
+      `SELECT id, status, people_count
+       FROM invitations
+       WHERE status = 'active'`,
+    );
+
+    const [statsGuests] = statsInvitations.length
+      ? await getPool().execute(
+          `SELECT id, invitation_id, owner_side, is_primary
+           FROM invitation_guests
+           WHERE invitation_id IN (${statsInvitations.map(() => "?").join(",")})
+           ORDER BY invitation_id, is_primary DESC, id`,
+          statsInvitations.map((invitation) => invitation.id),
+        )
+      : [[]];
+
+    const [statsResponses] = await getPool().execute(
+      `SELECT rgr.invitation_guest_id, rgr.attendance_status
+       FROM rsvp_guest_responses rgr
+       INNER JOIN rsvps r ON r.id = rgr.rsvp_id
+       INNER JOIN invitations i ON i.id = r.invitation_id
+       WHERE i.status = 'active'`,
+    );
+
+    const stats = calculateStats(statsInvitations, statsGuests, statsResponses);
 
     if (!invitations.length) {
       return NextResponse.json({ invitations: [], stats });
