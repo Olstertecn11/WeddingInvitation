@@ -2374,6 +2374,80 @@ footer small {
   color: #8e4736;
 }
 
+.admin-link-mode-switch {
+  align-items: center;
+  background: #f3eadf;
+  border: 1px solid rgba(63, 55, 50, .12);
+  cursor: pointer;
+  display: grid;
+  gap: .8rem;
+  grid-template-columns: auto 1fr;
+  padding: .85rem;
+}
+
+.admin-link-mode-switch.compact {
+  margin: .85rem 0 .2rem;
+  max-width: 360px;
+}
+
+.admin-link-mode-switch input {
+  appearance: none;
+  background: #d6cabc;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  height: 26px;
+  margin: 0;
+  padding: 3px;
+  position: relative;
+  transition: background .2s ease;
+  width: 48px;
+}
+
+.admin-link-mode-switch input::before {
+  background: #fffaf3;
+  border-radius: 50%;
+  box-shadow: 0 2px 7px rgba(67, 51, 41, .2);
+  content: "";
+  height: 20px;
+  left: 3px;
+  position: absolute;
+  top: 3px;
+  transition: transform .2s ease;
+  width: 20px;
+}
+
+.admin-link-mode-switch input:checked {
+  background: #3f493d;
+}
+
+.admin-link-mode-switch input:checked::before {
+  transform: translateX(22px);
+}
+
+.admin-link-mode-switch input:disabled {
+  cursor: not-allowed;
+  opacity: .55;
+}
+
+.admin-link-mode-switch span {
+  display: grid;
+  gap: .25rem;
+}
+
+.admin-link-mode-switch strong {
+  color: #403832;
+  font-size: .68rem;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+}
+
+.admin-link-mode-switch small {
+  color: #746a63;
+  font-size: .68rem;
+  line-height: 1.45;
+}
+
 .admin-guests-heading {
   align-items: center;
   display: flex;

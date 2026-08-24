@@ -64,18 +64,21 @@ export async function POST(request) {
     connection = await getPool().getConnection();
     await connection.beginTransaction();
     const [guestCodeInvitations] = await connection.execute(
-      `SELECT i.id, i.display_name, i.max_guests, ig.id AS selected_guest_id
+      `SELECT i.id, i.code, i.display_name, i.max_guests, i.link_mode,
+              ig.id AS selected_guest_id
        FROM invitation_guests ig
        INNER JOIN invitations i ON i.id = ig.invitation_id
-       WHERE ig.code = ? AND i.status = 'active'
+       WHERE ig.code = ? AND i.status = 'active' AND i.link_mode = 'individual'
        LIMIT 1
        FOR UPDATE`,
       [code],
     );
     const [invitations] = await connection.execute(
-      `SELECT id, display_name, max_guests
+      `SELECT id, code, display_name, max_guests, link_mode
        FROM invitations
-       WHERE code = ? AND status = 'active'
+       WHERE code = ?
+         AND status = 'active'
+         AND (link_mode = 'group' OR invitation_type = 'individual')
        LIMIT 1
        FOR UPDATE`,
       [code],
@@ -212,13 +215,21 @@ export async function POST(request) {
         (response) =>
           Number(response.invitationGuestId) === Number(confirmedGuest?.id),
       ) || guestResponses[0];
+    const responseByGuestId = new Map(
+      guestResponses.map((response) => [
+        Number(response.invitationGuestId),
+        response.attendanceStatus,
+      ]),
+    );
 
     after(() => {
       sendRsvpConfirmationEmail({
         to: contactEmail,
         invitation: {
           id: invitation.id,
+          code: invitation.code,
           displayName: invitation.display_name,
+          linkMode: invitation.link_mode,
         },
         guest: {
           id: confirmedGuest.id,
@@ -226,6 +237,13 @@ export async function POST(request) {
           fullName: confirmedGuest.full_name,
           ceremonyRole: confirmedGuest.ceremony_role,
         },
+        guests: guestRows.map((guest) => ({
+          id: guest.id,
+          code: guest.code,
+          fullName: guest.full_name,
+          ceremonyRole: guest.ceremony_role,
+          attendanceStatus: responseByGuestId.get(Number(guest.id)) || "pending",
+        })),
         attendanceStatus: confirmedResponse.attendanceStatus,
       }).catch((error) => {
         console.warn(

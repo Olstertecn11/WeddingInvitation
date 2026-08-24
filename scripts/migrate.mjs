@@ -92,6 +92,7 @@ try {
         code VARCHAR(64) NOT NULL,
         display_name VARCHAR(160) NOT NULL,
         invitation_type ENUM('individual', 'couple', 'family') NOT NULL DEFAULT 'individual',
+        link_mode ENUM('individual', 'group') NOT NULL DEFAULT 'individual',
         status ENUM('active', 'disabled', 'expired') NOT NULL DEFAULT 'active',
         max_guests TINYINT UNSIGNED NOT NULL DEFAULT 1,
         people_count TINYINT UNSIGNED NOT NULL DEFAULT 1,
@@ -103,6 +104,7 @@ try {
         PRIMARY KEY (id),
         UNIQUE KEY uq_invitations_code (code),
         KEY idx_invitations_display_name (display_name),
+        KEY idx_invitations_link_mode (link_mode),
         KEY idx_invitations_status (status)
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
@@ -119,8 +121,13 @@ try {
   );
   await addColumn(
     "invitations",
+    "link_mode",
+    "link_mode ENUM('individual', 'group') NOT NULL DEFAULT 'individual' AFTER invitation_type",
+  );
+  await addColumn(
+    "invitations",
     "status",
-    "status ENUM('active', 'disabled', 'expired') NOT NULL DEFAULT 'active' AFTER invitation_type",
+    "status ENUM('active', 'disabled', 'expired') NOT NULL DEFAULT 'active' AFTER link_mode",
   );
   await addColumn(
     "invitations",
@@ -175,6 +182,11 @@ try {
   if (!(await indexExists("invitations", "idx_invitations_status"))) {
     await connection.query(
       "ALTER TABLE invitations ADD KEY idx_invitations_status (status)",
+    );
+  }
+  if (!(await indexExists("invitations", "idx_invitations_link_mode"))) {
+    await connection.query(
+      "ALTER TABLE invitations ADD KEY idx_invitations_link_mode (link_mode)",
     );
   }
 

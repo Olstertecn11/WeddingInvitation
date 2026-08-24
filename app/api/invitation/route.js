@@ -15,18 +15,19 @@ export async function GET(request) {
       `SELECT ig.id AS selected_guest_id, ig.full_name AS selected_guest_name,
               i.id, i.display_name,
               i.invitation_type, i.status, i.max_guests,
-              i.personalized_message
+              i.link_mode, i.personalized_message
        FROM invitation_guests ig
        INNER JOIN invitations i ON i.id = ig.invitation_id
-       WHERE ig.code = ?
+       WHERE ig.code = ? AND i.link_mode = 'individual'
        LIMIT 1`,
       [code],
     );
     const [rows] = await pool.execute(
-      `SELECT id, display_name, invitation_type, status, max_guests,
+      `SELECT id, display_name, invitation_type, status, max_guests, link_mode,
               personalized_message
        FROM invitations
        WHERE code = ?
+         AND (link_mode = 'group' OR invitation_type = 'individual')
        LIMIT 1`,
       [code],
     );
@@ -109,6 +110,7 @@ export async function GET(request) {
       displayName: invitation.selected_guest_name || invitation.display_name,
       groupName: invitation.display_name,
       invitationType: selectedGuestId ? "individual" : invitation.invitation_type,
+      linkMode: invitation.link_mode,
       status: invitation.status,
       maxGuests: visibleGuests.length,
       personalizedMessage: invitation.personalized_message,

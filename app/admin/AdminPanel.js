@@ -357,6 +357,7 @@ function Login({ onSuccess }) {
 
 function CreateInvitation({ onCreated }) {
   const [invitationType, setInvitationType] = useState("individual");
+  const [linkMode, setLinkMode] = useState("individual");
   const [peopleCount, setPeopleCount] = useState(1);
   const [guests, setGuests] = useState([emptyGuest()]);
   const [status, setStatus] = useState("idle");
@@ -373,6 +374,7 @@ function CreateInvitation({ onCreated }) {
   function changeType(type) {
     setInvitationType(type);
     if (type === "individual") setGuests([guests[0] || emptyGuest()]);
+    if (type !== "family") setLinkMode("individual");
   }
 
   async function submit(event) {
@@ -388,6 +390,7 @@ function CreateInvitation({ onCreated }) {
         invitationType,
         displayName: form.get("displayName"),
         peopleCount,
+        linkMode,
         personalizedMessage: form.get("personalizedMessage"),
         guests,
       }),
@@ -399,8 +402,9 @@ function CreateInvitation({ onCreated }) {
       formElement.reset();
       setGuests([emptyGuest()]);
       setInvitationType("individual");
+      setLinkMode("individual");
       setPeopleCount(1);
-      onCreated();
+      onCreated(result.invitation);
     }
   }
 
@@ -457,6 +461,26 @@ function CreateInvitation({ onCreated }) {
             required
           />
         </label>
+
+        {invitationType === "family" && (
+          <label className="admin-link-mode-switch">
+            <input
+              type="checkbox"
+              checked={linkMode === "group"}
+              onChange={(event) =>
+                setLinkMode(event.target.checked ? "group" : "individual")
+              }
+            />
+            <span>
+              <strong>Usar un solo link para toda la familia</strong>
+              <small>
+                {linkMode === "group"
+                  ? "La confirmación incluirá a todos los integrantes en el mismo enlace."
+                  : "Cada integrante tendrá su propio link para confirmar por separado."}
+              </small>
+            </span>
+          </label>
+        )}
 
         <div className="admin-guests-heading">
           <span>Integrantes incluidos</span>
@@ -674,6 +698,29 @@ function InvitationDirectory({ refreshKey, onDataLoaded }) {
     loadInvitations(query);
   }
 
+  async function updateInvitationLinkMode(invitationId, linkMode) {
+    setUpdatingInvitationId(invitationId);
+    setMessage("");
+    const response = await fetch("/api/admin/invitations", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invitationId, linkMode }),
+    });
+    const result = await response.json();
+    setUpdatingInvitationId(null);
+    setMessage(result.message);
+
+    if (!response.ok) return;
+
+    setInvitations((current) =>
+      current.map((invitation) =>
+        invitation.id === invitationId
+          ? { ...invitation, link_mode: linkMode }
+          : invitation,
+      ),
+    );
+  }
+
   async function updateGuest(invitationId, guestId, field, value) {
     setUpdatingGuestId(guestId);
     setMessage("");
@@ -753,8 +800,32 @@ function InvitationDirectory({ refreshKey, onDataLoaded }) {
                     : "Individual"}{" "}
                 · {invitation.guests.length} persona(s)
                 · {invitation.people_count || 1} en estadística
+                · {invitation.link_mode === "group" ? "link grupal" : "links individuales"}
                 {invitation.status !== "active" ? ` · ${invitation.status}` : ""}
               </p>
+              {invitation.invitation_type === "family" && (
+                <label className="admin-link-mode-switch compact">
+                  <input
+                    type="checkbox"
+                    checked={invitation.link_mode === "group"}
+                    disabled={updatingInvitationId === invitation.id}
+                    onChange={(event) =>
+                      updateInvitationLinkMode(
+                        invitation.id,
+                        event.target.checked ? "group" : "individual",
+                      )
+                    }
+                  />
+                  <span>
+                    <strong>Un solo link grupal</strong>
+                    <small>
+                      {invitation.link_mode === "group"
+                        ? "Copiarás el link de la familia completa."
+                        : "Copiarás links personales por integrante."}
+                    </small>
+                  </span>
+                </label>
+              )}
               <div className="admin-people-count">
                 <label htmlFor={`people-count-${invitation.id}`}>
                   Personas en estadística
@@ -851,18 +922,30 @@ function InvitationDirectory({ refreshKey, onDataLoaded }) {
             <div className="admin-invitation-actions">
               <small>Código interno: {invitation.code}</small>
               <div className="admin-guest-links">
-                {invitation.guests.map((guest) => (
+                {invitation.link_mode === "group" ? (
                   <button
-                    key={guest.id}
                     type="button"
                     disabled={invitation.status !== "active"}
-                    onClick={() => copyInvitation(guest.code)}
+                    onClick={() => copyInvitation(invitation.code)}
                   >
-                    {copied === guest.code
+                    {copied === invitation.code
                       ? "Copiado"
-                      : `Copiar link personal: ${guest.fullName}`}
+                      : "Copiar link grupal"}
                   </button>
-                ))}
+                ) : (
+                  invitation.guests.map((guest) => (
+                    <button
+                      key={guest.id}
+                      type="button"
+                      disabled={invitation.status !== "active"}
+                      onClick={() => copyInvitation(guest.code)}
+                    >
+                      {copied === guest.code
+                        ? "Copiado"
+                        : `Copiar link personal: ${guest.fullName}`}
+                    </button>
+                  ))
+                )}
               </div>
               <button
                 className="admin-delete-button"
@@ -934,9 +1017,11 @@ export default function AdminPanel({ initialAuthenticated }) {
       ) : (
         <div className="admin-grid items-start">
           <CreateInvitation
-            onCreated={() => {
+            onCreated={(invitation) => {
               setCreatedMessage(
-                "Invitación creada. Copia los links personales desde el directorio.",
+                invitation?.linkMode === "group"
+                  ? "Invitación creada. Copia el link grupal desde el directorio."
+                  : "Invitación creada. Copia los links personales desde el directorio.",
               );
               setRefreshKey((key) => key + 1);
             }}

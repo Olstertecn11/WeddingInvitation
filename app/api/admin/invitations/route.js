@@ -6,6 +6,7 @@ import {
   createInvitationCode,
   normalizeCeremonyRole,
   normalizeGuests,
+  normalizeLinkMode,
   normalizeOwnerSide,
   normalizePeopleCount,
 } from "@/lib/invitations";
@@ -93,7 +94,7 @@ export async function GET(request) {
   try {
     const [invitations] = await getPool().execute(
       `SELECT i.id, i.code, i.display_name, i.invitation_type,
-              i.status, i.max_guests, i.people_count, i.personalized_message,
+              i.link_mode, i.status, i.max_guests, i.people_count, i.personalized_message,
               i.first_opened_at, i.last_opened_at, i.created_at
        FROM invitations i
        WHERE (? = '' OR i.display_name LIKE ? OR i.code LIKE ?
@@ -265,6 +266,8 @@ export async function POST(request) {
   const displayName = cleanText(payload.displayName, 160);
   const personalizedMessage = cleanText(payload.personalizedMessage, 500);
   const peopleCount = normalizePeopleCount(payload.peopleCount);
+  const linkMode =
+    invitationType === "family" ? normalizeLinkMode(payload.linkMode) : "individual";
   const guests = normalizeGuests(payload.guests);
 
   if (!displayName || !guests.length) {
@@ -306,13 +309,14 @@ export async function POST(request) {
       try {
         const [result] = await connection.execute(
           `INSERT INTO invitations
-           (code, display_name, invitation_type, status, max_guests,
+           (code, display_name, invitation_type, link_mode, status, max_guests,
             people_count, personalized_message)
-           VALUES (?, ?, ?, 'active', ?, ?, ?)`,
+           VALUES (?, ?, ?, ?, 'active', ?, ?, ?)`,
           [
             code,
             displayName,
             invitationType,
+            linkMode,
             guests.length,
             peopleCount,
             personalizedMessage || null,
@@ -354,7 +358,7 @@ export async function POST(request) {
     return NextResponse.json(
       {
         message: "Invitación creada correctamente.",
-        invitation: { id: invitationId, code },
+        invitation: { id: invitationId, code, linkMode },
       },
       { status: 201 },
     );
@@ -467,6 +471,44 @@ export async function PATCH(request) {
       console.error("Admin invitation update failed:", error);
       return NextResponse.json(
         { message: "No pudimos actualizar la invitación." },
+        { status: 500 },
+      );
+    }
+  }
+
+  if (Object.hasOwn(payload, "linkMode")) {
+    const linkMode = normalizeLinkMode(payload.linkMode);
+
+    if (!Number.isInteger(invitationId) || invitationId < 1) {
+      return NextResponse.json(
+        { message: "La invitación indicada no es válida." },
+        { status: 400 },
+      );
+    }
+
+    try {
+      const [result] = await getPool().execute(
+        `UPDATE invitations
+         SET link_mode = ?, updated_at = NOW()
+         WHERE id = ? AND invitation_type = 'family'`,
+        [linkMode, invitationId],
+      );
+
+      if (!result.affectedRows) {
+        return NextResponse.json(
+          { message: "Solo las invitaciones de familia o grupo pueden cambiar este modo." },
+          { status: 404 },
+        );
+      }
+
+      return NextResponse.json({
+        message: "Modo de link actualizado correctamente.",
+        invitation: { id: invitationId, linkMode },
+      });
+    } catch (error) {
+      console.error("Admin invitation link mode update failed:", error);
+      return NextResponse.json(
+        { message: "No pudimos actualizar el modo de link." },
         { status: 500 },
       );
     }

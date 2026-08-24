@@ -3,6 +3,7 @@ CREATE TABLE invitations (
   code VARCHAR(64) NOT NULL,
   display_name VARCHAR(160) NOT NULL,
   invitation_type ENUM('individual', 'couple', 'family') NOT NULL DEFAULT 'individual',
+  link_mode ENUM('individual', 'group') NOT NULL DEFAULT 'individual',
   status ENUM('active', 'disabled', 'expired') NOT NULL DEFAULT 'active',
   max_guests TINYINT UNSIGNED NOT NULL DEFAULT 1,
   people_count TINYINT UNSIGNED NOT NULL DEFAULT 1,
@@ -14,7 +15,8 @@ CREATE TABLE invitations (
   PRIMARY KEY (id),
   UNIQUE KEY uq_invitations_code (code),
   KEY idx_invitations_display_name (display_name),
-  KEY idx_invitations_status (status)
+  KEY idx_invitations_status (status),
+  KEY idx_invitations_link_mode (link_mode)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE invitation_guests (
@@ -118,12 +120,13 @@ CREATE TABLE admin_sessions (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT INTO invitations
-  (code, display_name, invitation_type, status, max_guests, people_count, personalized_message)
+  (code, display_name, invitation_type, link_mode, status, max_guests, people_count, personalized_message)
 VALUES
   (
     'FAMILIA-TZUNUN-2026',
     'Familia Tzunún',
     'family',
+    'individual',
     'active',
     2,
     1,
