@@ -1012,9 +1012,13 @@ export default function WeddingInvitation({ initialCode = "" }) {
               <h3>Regalos</h3>
               <p className="script">Lluvia de sobres</p>
               <p>
-                Su presencia es nuestro mayor regalo. Si desean hacernos un
-                presente en efectivo, tendremos un buzón de sobres a su
-                disposición el día de la celebración.
+                Su presencia es nuestro mayor regalo y nos llena de alegría
+                compartir este día tan especial con ustedes. Con mucho cariño,
+                les contamos que no recibiremos regalos físicos. Si desean tener
+                un detalle con nosotros, agradeceremos que sea únicamente en
+                efectivo, mediante la tradicional lluvia de sobres. Para ello,
+                tendremos un buzón especial a su disposición durante la
+                celebración.
               </p>
             </article>
             <article>
