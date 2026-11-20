@@ -76,7 +76,10 @@ function calculateStats(invitations, guests, responses) {
       else if (guest.owner_side === "groom") stats.groomGuests += weight;
       else stats.sharedGuests += weight;
 
-      const attendanceStatus = guest.attendance_status || responsesByGuestId.get(Number(guest.id));
+      const responseStatus = responsesByGuestId.get(Number(guest.id));
+      const attendanceStatus = responseStatus && responseStatus !== "pending"
+        ? responseStatus
+        : guest.attendance_status || responseStatus;
       if (attendanceStatus === "attending") stats.attendingGuests += weight;
       if (attendanceStatus === "not_attending") stats.declinedGuests += weight;
     }

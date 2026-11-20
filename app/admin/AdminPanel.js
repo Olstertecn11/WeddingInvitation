@@ -21,6 +21,7 @@ const defaultStats = {
   groomGuests: 0,
   sharedGuests: 0,
   attendingGuests: 0,
+  pendingGuests: 0,
   declinedGuests: 0,
 };
 
@@ -62,6 +63,7 @@ function AdminDashboard({ stats, onOpenResponses }) {
   const confirmedPercent = totalGuests
     ? Math.round((attendingGuests / totalGuests) * 100)
     : 0;
+  const answeredGuests = attendingGuests + declinedGuests;
   const ownerSegments = [
     { key: "bride", label: "Novia", value: brideGuests },
     { key: "groom", label: "Novio", value: groomGuests },
@@ -87,29 +89,68 @@ function AdminDashboard({ stats, onOpenResponses }) {
           onClick={() => onOpenResponses("all")}
         />
         <StatCard
-          label="Confirmados"
-          value={attendingGuests}
-          detail={`${pendingGuests} pendiente(s) · ${declinedGuests} no asistirá(n)`}
-          tone="confirmed"
-          onClick={() => onOpenResponses("attending")}
-        />
-        <StatCard
-          label="Invitados novia"
+          label="Novia"
           value={brideGuests}
-          detail={totalGuests ? `${Math.round((brideGuests / totalGuests) * 100)}% del total` : "Sin datos"}
+          detail={totalGuests ? `${Math.round((brideGuests / totalGuests) * 100)}% de invitados` : "Sin datos"}
           tone="bride"
           onClick={() => onOpenResponses("bride")}
         />
         <StatCard
-          label="Invitados novio"
+          label="Novio"
           value={groomGuests}
-          detail={totalGuests ? `${Math.round((groomGuests / totalGuests) * 100)}% del total` : "Sin datos"}
+          detail={totalGuests ? `${Math.round((groomGuests / totalGuests) * 100)}% de invitados` : "Sin datos"}
           tone="groom"
           onClick={() => onOpenResponses("groom")}
         />
+        <StatCard
+          label="Confirmados"
+          value={attendingGuests}
+          detail={`${confirmedPercent}% de invitados`}
+          tone="confirmed"
+          onClick={() => onOpenResponses("attending")}
+        />
+        <StatCard
+          label="Pendientes"
+          value={pendingGuests}
+          detail={totalGuests ? `${Math.round((pendingGuests / totalGuests) * 100)}% por responder` : "Sin datos"}
+          tone="pending"
+          onClick={() => onOpenResponses("pending")}
+        />
+        <StatCard
+          label="No asistirán"
+          value={declinedGuests}
+          detail={totalGuests ? `${Math.round((declinedGuests / totalGuests) * 100)}% del total` : "Sin datos"}
+          tone="declined"
+          onClick={() => onOpenResponses("not_attending")}
+        />
+      </div>
+
+      <div className="admin-rsvp-summary" aria-label="Estado de las confirmaciones">
+        <div className="admin-rsvp-heading">
+          <strong>Respuestas recibidas</strong>
+          <span>{answeredGuests} de {totalGuests} invitados</span>
+        </div>
+        <div className="admin-rsvp-track" aria-hidden="true">
+          {[
+            ["confirmed", attendingGuests],
+            ["declined", declinedGuests],
+            ["pending", pendingGuests],
+          ].map(([key, value]) => (
+            <span key={key} className={key} style={{ width: totalGuests ? `${(value / totalGuests) * 100}%` : "0%" }} />
+          ))}
+        </div>
+        <div className="admin-owner-legend">
+          <span><i className="confirmed" />Confirmados: {attendingGuests}</span>
+          <span><i className="pending" />Pendientes: {pendingGuests}</span>
+          <span><i className="declined" />No asistirán: {declinedGuests}</span>
+        </div>
       </div>
 
       <div className="admin-owner-panel">
+        <div className="admin-rsvp-heading">
+          <strong>Invitados por lado</strong>
+          <span>{totalGuests} personas en total</span>
+        </div>
         <div className="admin-owner-track" aria-hidden="true">
           {ownerSegments.map((segment) => (
             <span
@@ -185,10 +226,13 @@ function AdminResponsesPage({ initialFilter, onBack }) {
           (item) => Number(item.invitationGuestId) === Number(guest.id),
         ) ||
         null;
-      const attendanceStatus = guest.attendanceStatus || response?.guestResponses?.find(
+      const responseStatus = response?.guestResponses?.find(
         (guestResponse) =>
           Number(guestResponse.invitationGuestId) === Number(guest.id),
-      )?.attendanceStatus || "pending";
+      )?.attendanceStatus;
+      const attendanceStatus = responseStatus && responseStatus !== "pending"
+        ? responseStatus
+        : guest.attendanceStatus || responseStatus || "pending";
 
       return {
         id: `${invitation.id}-${guest.id}`,

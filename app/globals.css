@@ -2210,7 +2210,7 @@ footer small {
 .admin-stat-grid {
   display: grid;
   gap: .8rem;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .admin-stat-card {
@@ -2262,6 +2262,62 @@ footer small {
 
 .admin-stat-card.groom {
   border-top: 4px solid #466476;
+}
+
+.admin-stat-card.pending {
+  border-top: 4px solid #c08a4e;
+}
+
+.admin-stat-card.declined {
+  border-top: 4px solid #9a625b;
+}
+
+.admin-rsvp-summary {
+  background: #fffaf3;
+  border: 1px solid rgba(63, 55, 50, .12);
+  margin-top: .8rem;
+  padding: 1rem;
+}
+
+.admin-rsvp-heading {
+  align-items: center;
+  color: #51473f;
+  display: flex;
+  font-size: .82rem;
+  justify-content: space-between;
+  margin-bottom: .8rem;
+}
+
+.admin-rsvp-heading span {
+  color: #746a63;
+  font-size: .72rem;
+}
+
+.admin-rsvp-track {
+  background: #e1d6ca;
+  display: flex;
+  height: 12px;
+  overflow: hidden;
+}
+
+.admin-rsvp-track span {
+  display: block;
+  min-width: 0;
+}
+
+.admin-rsvp-track .confirmed,
+.admin-owner-legend i.confirmed {
+  background: #6f8a65;
+}
+
+.admin-rsvp-track .declined,
+.admin-owner-legend i.declined {
+  background: #9a625b;
+}
+
+.admin-rsvp-track .pending,
+.admin-owner-legend i.pending {
+  background: #c08a4e;
 }
 
 .admin-owner-panel {
@@ -2829,9 +2885,12 @@ footer small {
 @media (max-width: 900px) {
 
   .story-section,
-  .admin-grid,
-  .admin-stat-grid {
+  .admin-grid {
     grid-template-columns: 1fr;
+  }
+
+  .admin-stat-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .story-section {
@@ -2883,6 +2942,16 @@ footer small {
 }
 
 @media (max-width: 620px) {
+  .admin-stat-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .admin-rsvp-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: .25rem;
+  }
+
   .letter b {
     display: none;
   }
