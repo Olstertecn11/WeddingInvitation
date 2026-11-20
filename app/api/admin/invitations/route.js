@@ -76,7 +76,7 @@ function calculateStats(invitations, guests, responses) {
       else if (guest.owner_side === "groom") stats.groomGuests += weight;
       else stats.sharedGuests += weight;
 
-      const attendanceStatus = responsesByGuestId.get(Number(guest.id));
+      const attendanceStatus = guest.attendance_status || responsesByGuestId.get(Number(guest.id));
       if (attendanceStatus === "attending") stats.attendingGuests += weight;
       if (attendanceStatus === "not_attending") stats.declinedGuests += weight;
     }
@@ -124,7 +124,7 @@ export async function GET(request) {
 
     const [statsGuests] = statsInvitations.length
       ? await getPool().execute(
-          `SELECT id, invitation_id, owner_side, is_primary
+          `SELECT id, invitation_id, owner_side, is_primary, attendance_status
            FROM invitation_guests
            WHERE invitation_id IN (${statsInvitations.map(() => "?").join(",")})
            ORDER BY invitation_id, is_primary DESC, id`,
@@ -149,7 +149,7 @@ export async function GET(request) {
     const ids = invitations.map((invitation) => invitation.id);
     const placeholders = ids.map(() => "?").join(",");
     const [guests] = await getPool().execute(
-      `SELECT id, code, invitation_id, full_name, owner_side, ceremony_role, is_primary
+      `SELECT id, code, invitation_id, full_name, owner_side, ceremony_role, is_primary, attendance_status
        FROM invitation_guests
        WHERE invitation_id IN (${placeholders})
        ORDER BY invitation_id, is_primary DESC, id`,
@@ -226,7 +226,7 @@ export async function GET(request) {
             contactEmail: guestRsvp?.contact_email || null,
             guestMessage: guestRsvp?.guest_message || null,
             attendanceStatus:
-              responses.find(
+              guest.attendance_status || responses.find(
                 (response) =>
                   response.rsvp_id === guestRsvp?.id &&
                   response.invitation_guest_id === guest.id,
@@ -519,6 +519,17 @@ export async function PATCH(request) {
     values.push(normalizeCeremonyRole(payload.ceremonyRole));
   }
 
+  if (Object.hasOwn(payload, "attendanceStatus")) {
+    if (!["pending", "attending", "not_attending"].includes(payload.attendanceStatus)) {
+      return NextResponse.json(
+        { message: "El estado de asistencia no es válido." },
+        { status: 400 },
+      );
+    }
+    updates.push("attendance_status = ?");
+    values.push(payload.attendanceStatus);
+  }
+
   if (Object.hasOwn(payload, "ownerSide")) {
     updates.push("owner_side = ?");
     values.push(normalizeOwnerSide(payload.ownerSide));
@@ -559,6 +570,9 @@ export async function PATCH(request) {
         id: guestId,
         ceremonyRole: Object.hasOwn(payload, "ceremonyRole")
           ? normalizeCeremonyRole(payload.ceremonyRole)
+          : undefined,
+        attendanceStatus: Object.hasOwn(payload, "attendanceStatus")
+          ? payload.attendanceStatus
           : undefined,
         ownerSide: Object.hasOwn(payload, "ownerSide")
           ? normalizeOwnerSide(payload.ownerSide)

@@ -27,6 +27,7 @@ CREATE TABLE invitation_guests (
   normalized_name VARCHAR(160) NOT NULL,
   owner_side ENUM('bride', 'groom', 'shared') NOT NULL DEFAULT 'shared',
   ceremony_role ENUM('none', 'bridesmaid', 'groomsman') NOT NULL DEFAULT 'none',
+  attendance_status ENUM('pending', 'attending', 'not_attending') NOT NULL DEFAULT 'pending',
   is_primary BOOLEAN NOT NULL DEFAULT FALSE,
   created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at DATETIME NULL,

@@ -2631,7 +2631,7 @@ footer small {
   background: #eee5da;
   display: grid;
   gap: .45rem;
-  grid-template-columns: minmax(180px, 1fr) minmax(90px, auto) minmax(120px, auto);
+  grid-template-columns: minmax(180px, 1fr) repeat(3, minmax(100px, auto));
   font-size: .62rem;
   padding: .35rem .55rem;
 }
@@ -2648,6 +2648,16 @@ footer small {
   margin: 0;
   min-height: 30px;
   padding: .25rem .35rem;
+}
+
+@media (max-width: 700px) {
+  .admin-member-chip {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .admin-member-chip span {
+    grid-column: 1 / -1;
+  }
 }
 
 .admin-invitation-actions {

@@ -185,10 +185,10 @@ function AdminResponsesPage({ initialFilter, onBack }) {
           (item) => Number(item.invitationGuestId) === Number(guest.id),
         ) ||
         null;
-      const attendanceStatus = response?.guestResponses?.find(
+      const attendanceStatus = guest.attendanceStatus || response?.guestResponses?.find(
         (guestResponse) =>
           Number(guestResponse.invitationGuestId) === Number(guest.id),
-      )?.attendanceStatus || guest.attendanceStatus || "pending";
+      )?.attendanceStatus || "pending";
 
       return {
         id: `${invitation.id}-${guest.id}`,
@@ -747,7 +747,7 @@ function InvitationDirectory({ refreshKey, onDataLoaded }) {
           : invitation,
       ),
     );
-    if (field === "ownerSide") loadInvitations(query);
+    if (field === "ownerSide" || field === "attendanceStatus") loadInvitations(query);
   }
 
   return (
@@ -881,6 +881,18 @@ function InvitationDirectory({ refreshKey, onDataLoaded }) {
                       {` · ${ownerSideLabel[guest.ownerSide] || "Ambos"}`}
                       {guest.contactEmail ? ` · ${guest.contactEmail}` : ""}
                     </span>
+                    <select
+                      aria-label={`Asistencia de ${guest.fullName}`}
+                      value={guest.attendanceStatus || "pending"}
+                      disabled={updatingGuestId === guest.id}
+                      onChange={(event) =>
+                        updateGuest(invitation.id, guest.id, "attendanceStatus", event.target.value)
+                      }
+                    >
+                      <option value="pending">Pendiente</option>
+                      <option value="attending">Asistirá</option>
+                      <option value="not_attending">No asistirá</option>
+                    </select>
                     <select
                       aria-label={`Pertenece a ${guest.fullName}`}
                       value={guest.ownerSide}
