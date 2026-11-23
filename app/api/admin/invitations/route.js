@@ -50,6 +50,8 @@ function calculateStats(invitations, guests, responses) {
     "groomGuests",
     "sharedGuests",
     "attendingGuests",
+    "brideAttendingGuests",
+    "groomAttendingGuests",
     "declinedGuests",
   ]) {
     stats[key] = 0;
@@ -80,7 +82,11 @@ function calculateStats(invitations, guests, responses) {
       const attendanceStatus = responseStatus && responseStatus !== "pending"
         ? responseStatus
         : guest.attendance_status || responseStatus;
-      if (attendanceStatus === "attending") stats.attendingGuests += weight;
+      if (attendanceStatus === "attending") {
+        stats.attendingGuests += weight;
+        if (guest.owner_side === "bride") stats.brideAttendingGuests += weight;
+        else if (guest.owner_side === "groom") stats.groomAttendingGuests += weight;
+      }
       if (attendanceStatus === "not_attending") stats.declinedGuests += weight;
     }
   }

@@ -21,6 +21,8 @@ const defaultStats = {
   groomGuests: 0,
   sharedGuests: 0,
   attendingGuests: 0,
+  brideAttendingGuests: 0,
+  groomAttendingGuests: 0,
   pendingGuests: 0,
   declinedGuests: 0,
 };
@@ -91,14 +93,14 @@ function AdminDashboard({ stats, onOpenResponses }) {
         <StatCard
           label="Novia"
           value={brideGuests}
-          detail={totalGuests ? `${Math.round((brideGuests / totalGuests) * 100)}% de invitados` : "Sin datos"}
+          detail={`${toNumber(normalizedStats.brideAttendingGuests)} confirmados${totalGuests ? ` · ${Math.round((brideGuests / totalGuests) * 100)}% de invitados` : ""}`}
           tone="bride"
           onClick={() => onOpenResponses("bride")}
         />
         <StatCard
           label="Novio"
           value={groomGuests}
-          detail={totalGuests ? `${Math.round((groomGuests / totalGuests) * 100)}% de invitados` : "Sin datos"}
+          detail={`${toNumber(normalizedStats.groomAttendingGuests)} confirmados${totalGuests ? ` · ${Math.round((groomGuests / totalGuests) * 100)}% de invitados` : ""}`}
           tone="groom"
           onClick={() => onOpenResponses("groom")}
         />
